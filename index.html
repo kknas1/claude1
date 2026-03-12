@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>소비자 지킴이 - 한국소비자원 시뮬레이션</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1B5E20;
+            --primary-light: #4CAF50;
+            --primary-dark: #0D3B0F;
+            --accent: #FF6F00;
+            --accent-light: #FFA726;
+            --bg: #F5F5F0;
+            --card: #FFFFFF;
+            --text: #212121;
+            --text-light: #757575;
+            --success: #2E7D32;
+            --danger: #C62828;
+            --warning: #F57F17;
+            --info: #1565C0;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* 시작 화면 */
+        #start-screen {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 50%, var(--primary-light) 100%);
+            color: white;
+            text-align: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #start-screen::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .logo-container {
+            position: relative;
+            z-index: 1;
+            margin-bottom: 30px;
+        }
+
+        .shield-icon {
+            width: 120px;
+            height: 120px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 60px;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255,255,255,0.3);
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .game-title {
+            font-size: 48px;
+            font-weight: 900;
+            margin-bottom: 10px;
+            text-shadow: 2px 4px 8px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 1;
+        }
+
+        .game-subtitle {
+            font-size: 18px;
+            font-weight: 300;
+            opacity: 0.9;
+            margin-bottom: 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .start-info {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 24px 32px;
+            margin-bottom: 40px;
+            max-width: 500px;
+            text-align: left;
+            position: relative;
+            z-index: 1;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .start-info h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            opacity: 0.9;
+        }
+
+        .start-info p {
+            font-size: 14px;
+            line-height: 1.8;
+            opacity: 0.85;
+        }
+
+        .btn {
+            padding: 16px 48px;
+            font-size: 18px;
+            font-weight: 700;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            z-index: 1;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+
+        .btn-start {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 4px 20px rgba(255, 111, 0, 0.4);
+        }
+
+        .btn-start:hover {
+            background: var(--accent-light);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(255, 111, 0, 0.5);
+        }
+
+        /* 게임 화면 */
+        #game-screen {
+            display: none;
+            min-height: 100vh;
+            padding-bottom: 40px;
+        }
+
+        .top-bar {
+            background: var(--primary);
+            color: white;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .top-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .top-bar-logo {
+            font-size: 24px;
+        }
+
+        .top-bar-title {
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .top-bar-rank {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .stats-bar {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            background: rgba(255,255,255,0.15);
+            padding: 6px 14px;
+            border-radius: 20px;
+        }
+
+        .stat-icon {
+            font-size: 16px;
+        }
+
+        .stat-value {
+            font-weight: 700;
+        }
+
+        /* 진행 바 */
+        .progress-container {
+            background: rgba(0,0,0,0.1);
+            padding: 8px 24px;
+        }
+
+        .progress-bar-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .progress-bar-bg {
+            flex: 1;
+            height: 8px;
+            background: #E0E0E0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-light), var(--accent));
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-text {
+            font-size: 13px;
+            color: var(--text-light);
+            font-weight: 500;
+            min-width: 80px;
+            text-align: right;
+        }
+
+        /* 사건 카드 */
+        .case-container {
+            max-width: 800px;
+            margin: 24px auto;
+            padding: 0 20px;
+        }
+
+        .case-card {
+            background: var(--card);
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .case-header {
+            padding: 24px 28px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .case-badge {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            flex-shrink: 0;
+        }
+
+        .badge-ecommerce { background: #E3F2FD; }
+        .badge-travel { background: #FFF3E0; }
+        .badge-health { background: #E8F5E9; }
+        .badge-finance { background: #FCE4EC; }
+        .badge-product { background: #F3E5F5; }
+        .badge-housing { background: #E0F2F1; }
+
+        .case-title-area h2 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .case-category {
+            font-size: 13px;
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .difficulty-dots {
+            display: inline-flex;
+            gap: 3px;
+        }
+
+        .difficulty-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #E0E0E0;
+        }
+
+        .difficulty-dot.active {
+            background: var(--accent);
+        }
+
+        .case-body {
+            padding: 28px;
+        }
+
+        .complaint-box {
+            background: #FAFAFA;
+            border-left: 4px solid var(--primary-light);
+            border-radius: 0 12px 12px 0;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        }
+
+        .complaint-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .complaint-text {
+            font-size: 15px;
+            line-height: 1.8;
+            color: #424242;
+        }
+
+        .evidence-section {
+            margin-bottom: 24px;
+        }
+
+        .evidence-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .evidence-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .evidence-chip {
+            background: #F5F5F5;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #616161;
+            border: 1px solid #E0E0E0;
+        }
+
+        .question-text {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 20px;
+            padding-top: 8px;
+            border-top: 1px solid #f0f0f0;
+            padding-top: 20px;
+        }
+
+        .choices {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .choice-btn {
+            width: 100%;
+            padding: 18px 24px;
+            font-size: 15px;
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--card);
+            border: 2px solid #E0E0E0;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+            line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .choice-btn:hover:not(:disabled) {
+            border-color: var(--primary-light);
+            background: #F1F8E9;
+            transform: translateX(4px);
+        }
+
+        .choice-number {
+            width: 28px;
+            height: 28px;
+            background: #F5F5F5;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--text-light);
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .choice-btn:hover:not(:disabled) .choice-number {
+            background: var(--primary-light);
+            color: white;
+        }
+
+        .choice-btn.correct {
+            border-color: var(--success);
+            background: #E8F5E9;
+            animation: correctPulse 0.5s ease;
+        }
+
+        .choice-btn.correct .choice-number {
+            background: var(--success);
+            color: white;
+        }
+
+        .choice-btn.wrong {
+            border-color: var(--danger);
+            background: #FFEBEE;
+            animation: shake 0.5s ease;
+        }
+
+        .choice-btn.wrong .choice-number {
+            background: var(--danger);
+            color: white;
+        }
+
+        @keyframes correctPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+
+        /* 결과 피드백 */
+        .feedback-box {
+            margin-top: 20px;
+            padding: 20px 24px;
+            border-radius: 14px;
+            animation: slideUp 0.3s ease;
+            display: none;
+        }
+
+        .feedback-box.show {
+            display: block;
+        }
+
+        .feedback-correct {
+            background: #E8F5E9;
+            border: 1px solid #A5D6A7;
+        }
+
+        .feedback-wrong {
+            background: #FFF3E0;
+            border: 1px solid #FFCC80;
+        }
+
+        .feedback-title {
+            font-weight: 700;
+            font-size: 16px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .feedback-correct .feedback-title { color: var(--success); }
+        .feedback-wrong .feedback-title { color: var(--accent); }
+
+        .feedback-text {
+            font-size: 14px;
+            line-height: 1.7;
+            color: #424242;
+        }
+
+        .feedback-law {
+            margin-top: 12px;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.7);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--info);
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .btn-next {
+            margin-top: 20px;
+            background: var(--primary);
+            color: white;
+            padding: 14px 36px;
+            border-radius: 12px;
+            font-size: 15px;
+            display: block;
+            margin-left: auto;
+        }
+
+        .btn-next:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        /* 결과 화면 */
+        #result-screen {
+            display: none;
+            min-height: 100vh;
+            padding: 40px 20px;
+            background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            text-align: center;
+        }
+
+        .result-card {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 24px;
+            padding: 40px;
+            color: var(--text);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .result-emoji {
+            font-size: 80px;
+            margin-bottom: 16px;
+        }
+
+        .result-title {
+            font-size: 28px;
+            font-weight: 900;
+            margin-bottom: 8px;
+        }
+
+        .result-rank {
+            font-size: 16px;
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 24px;
+        }
+
+        .result-score-circle {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            margin: 0 auto 30px;
+            box-shadow: 0 4px 20px rgba(76, 175, 80, 0.3);
+        }
+
+        .result-score-number {
+            font-size: 48px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .result-score-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .result-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        .result-stat {
+            padding: 16px;
+            background: #F5F5F5;
+            border-radius: 12px;
+        }
+
+        .result-stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .result-stat-label {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+
+        .result-message {
+            font-size: 15px;
+            line-height: 1.8;
+            color: #616161;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #FAFAFA;
+            border-radius: 12px;
+        }
+
+        .result-tips {
+            text-align: left;
+            margin-bottom: 30px;
+        }
+
+        .result-tips h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--primary);
+        }
+
+        .tip-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 0;
+            font-size: 14px;
+            line-height: 1.6;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .tip-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .btn-restart {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 111, 0, 0.3);
+        }
+
+        .btn-restart:hover {
+            background: var(--accent-light);
+            transform: translateY(-2px);
+        }
+
+        /* 반응형 */
+        @media (max-width: 600px) {
+            .game-title { font-size: 32px; }
+            .stats-bar { gap: 8px; }
+            .stat-item { padding: 4px 10px; font-size: 12px; }
+            .case-body { padding: 20px; }
+            .result-stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+            .result-stat { padding: 12px 8px; }
+            .top-bar { padding: 10px 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- 시작 화면 -->
+<div id="start-screen">
+    <div class="logo-container">
+        <div class="shield-icon">&#x1F6E1;</div>
+    </div>
+    <h1 class="game-title">소비자 지킴이</h1>
+    <p class="game-subtitle">한국소비자원 피해구제 시뮬레이션</p>
+
+    <div class="start-info">
+        <h3>&#x1F4CB; 게임 안내</h3>
+        <p>
+            당신은 한국소비자원의 신입 피해구제 담당관입니다.<br>
+            접수된 소비자 피해 사건을 분석하고, 관련 법률과 규정에 따라<br>
+            올바른 판단을 내려 소비자의 권익을 보호하세요!<br><br>
+            &#x2705; 총 10건의 피해구제 사건을 처리합니다<br>
+            &#x2705; 정확한 판단으로 높은 점수를 획득하세요<br>
+            &#x2705; 실제 소비자보호법과 분쟁해결기준을 배울 수 있습니다
+        </p>
+    </div>
+
+    <button class="btn btn-start" onclick="startGame()">업무 시작하기</button>
+</div>
+
+<!-- 게임 화면 -->
+<div id="game-screen">
+    <div class="top-bar">
+        <div class="top-bar-left">
+            <span class="top-bar-logo">&#x1F6E1;</span>
+            <div>
+                <div class="top-bar-title">한국소비자원 피해구제부</div>
+                <div class="top-bar-rank" id="player-rank">수습 담당관</div>
+            </div>
+        </div>
+        <div class="stats-bar">
+            <div class="stat-item">
+                <span class="stat-icon">&#x2B50;</span>
+                <span class="stat-value" id="score">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-icon">&#x2705;</span>
+                <span class="stat-value" id="correct-count">0</span>/<span id="total-answered">0</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="progress-container">
+        <div class="progress-bar-wrapper">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progress-fill" style="width: 0%"></div>
+            </div>
+            <span class="progress-text" id="progress-text">사건 1 / 10</span>
+        </div>
+    </div>
+
+    <div class="case-container" id="case-container">
+        <!-- 사건 카드가 여기에 동적으로 생성됩니다 -->
+    </div>
+</div>
+
+<!-- 결과 화면 -->
+<div id="result-screen">
+    <div class="result-card" id="result-card">
+        <!-- 결과가 여기에 동적으로 생성됩니다 -->
+    </div>
+</div>
+
+<script>
+const cases = [
+    {
+        title: "온라인 쇼핑몰 환불 거부",
+        category: "전자상거래",
+        badgeClass: "badge-ecommerce",
+        icon: "&#x1F6D2;",
+        difficulty: 1,
+        complaint: "인터넷 쇼핑몰에서 겨울 패딩을 구매했습니다. 상품 수령 후 3일째에 단순 변심으로 환불을 요청했으나, 판매자가 '세일 상품은 환불 불가'라는 자체 규정을 들어 환불을 거부하고 있습니다.",
+        evidence: ["구매일로부터 3일 경과", "상품 미착용 상태", "판매자 자체 환불불가 규정"],
+        question: "이 사건에 대한 올바른 판단은 무엇일까요?",
+        choices: [
+            "판매자의 자체 규정이 있으므로 환불 거부는 정당하다",
+            "전자상거래법에 따라 7일 이내이므로 청약철회가 가능하다",
+            "세일 상품이므로 교환만 가능하고 환불은 불가하다",
+            "소비자가 배송비를 2배 부담하면 환불이 가능하다"
+        ],
+        correctIndex: 1,
+        explanation: "전자상거래 등에서의 소비자보호에 관한 법률 제17조에 따르면, 소비자는 상품을 받은 날로부터 7일 이내에 청약철회를 할 수 있습니다. 판매자의 자체 규정으로 이 권리를 제한할 수 없습니다.",
+        law: "전자상거래법 제17조 (청약철회 등)"
+    },
+    {
+        title: "해외여행 상품 취소 분쟁",
+        category: "여행/항공",
+        badgeClass: "badge-travel",
+        icon: "&#x2708;",
+        difficulty: 2,
+        complaint: "외교부가 여행경보 3단계(출국권고)를 발령한 중동 지역 여행 상품을 예약했습니다. 여행사에 취소를 요청했더니 위약금 30%를 요구하고 있습니다. 출발일은 2주 후입니다.",
+        evidence: ["외교부 여행경보 3단계 발령", "출발 2주 전", "위약금 30% 요구"],
+        question: "여행사의 위약금 부과가 정당한가요?",
+        choices: [
+            "출발 2주 전이므로 위약금 30%는 정당하다",
+            "여행경보 3단계 이상이므로 위약금 없이 전액 환불해야 한다",
+            "위약금 15%로 감액하여 환불해야 한다",
+            "여행자보험으로 처리해야 하며 여행사는 책임이 없다"
+        ],
+        correctIndex: 1,
+        explanation: "소비자분쟁해결기준에 따르면, 외교부 여행경보 3단계(출국권고) 이상인 지역의 경우 계약금 전액 환급 및 위약금이 면제됩니다. 이는 천재지변 등 불가항력에 해당하는 사유로 인정됩니다.",
+        law: "소비자분쟁해결기준 - 여행업"
+    },
+    {
+        title: "건강식품 과대광고 피해",
+        category: "건강/식품",
+        badgeClass: "badge-health",
+        icon: "&#x1F48A;",
+        difficulty: 2,
+        complaint: "SNS 광고를 보고 '3일 만에 10kg 감량'이라는 다이어트 건강식품을 12만원에 구매했습니다. 2주간 복용했으나 효과가 전혀 없고, 해당 제품이 식약처 인증을 받지 않은 것으로 확인되었습니다.",
+        evidence: ["과대광고 증거(SNS 캡처)", "식약처 미인증 제품", "2주간 복용 후 효과 없음"],
+        question: "소비자에게 가장 적절한 구제 방안은?",
+        choices: [
+            "이미 복용했으므로 환불이 불가하다",
+            "효과는 개인차가 있으므로 50%만 환불 가능하다",
+            "과대광고 및 미인증 제품이므로 전액 환불 및 관계기관 신고가 필요하다",
+            "제품 교환만 가능하다"
+        ],
+        correctIndex: 2,
+        explanation: "식품 등의 표시·광고에 관한 법률에 따라 허위·과대광고는 금지되어 있으며, 식약처 미인증 제품 판매는 불법입니다. 소비자는 전액 환불을 받을 수 있으며, 해당 업체는 식약처와 공정위에 신고 조치가 필요합니다.",
+        law: "식품 등의 표시·광고에 관한 법률 제8조"
+    },
+    {
+        title: "중고 스마트폰 미배송",
+        category: "전자상거래",
+        badgeClass: "badge-ecommerce",
+        icon: "&#x1F4F1;",
+        difficulty: 1,
+        complaint: "중고거래 플랫폼에서 최신 스마트폰을 시세보다 30% 저렴한 가격에 구매하고 대금 80만원을 송금했습니다. 이후 판매자와 연락이 두절되었고, 상품도 배송되지 않고 있습니다. 거래한 지 5일이 경과했습니다.",
+        evidence: ["대금 80만원 송금 완료", "판매자 연락 두절", "상품 미배송 5일 경과"],
+        question: "이 사건의 적절한 처리 방법은?",
+        choices: [
+            "중고거래는 개인 간 거래이므로 소비자원에서 처리할 수 없다",
+            "플랫폼 사업자에게 환불을 요구해야 한다",
+            "사기 의심 사안이므로 경찰 신고를 안내하고, 플랫폼 에스크로 이용 여부를 확인한다",
+            "7일간 더 기다린 후 조치를 취해야 한다"
+        ],
+        correctIndex: 2,
+        explanation: "연락 두절과 미배송은 사기 가능성이 높은 사안입니다. 경찰에 사기 피해 신고를 안내하고, 거래 플랫폼의 안전결제(에스크로) 서비스 이용 여부를 확인하여 대금 보호 조치를 취해야 합니다. 한국소비자원은 사업자-소비자 간 거래를 다루므로, 개인 간 사기는 경찰 관할입니다.",
+        law: "전자상거래법 제24조 (에스크로 등)"
+    },
+    {
+        title: "이동통신 해지 위약금 분쟁",
+        category: "통신/금융",
+        badgeClass: "badge-finance",
+        icon: "&#x1F4F6;",
+        difficulty: 3,
+        complaint: "2년 약정으로 휴대폰을 개통했는데, 개통 당시 약속한 월 요금과 실제 청구 금액이 다릅니다. 월 5만원이라고 했는데 매월 7만원이 청구되고 있습니다. 해지를 요청했더니 잔여 약정 위약금 40만원을 내라고 합니다.",
+        evidence: ["개통 시 녹음 파일(월 5만원 약속)", "실제 청구서(월 7만원)", "잔여 약정 14개월"],
+        question: "올바른 판단은?",
+        choices: [
+            "약정 기간이므로 위약금을 내고 해지해야 한다",
+            "통신사의 설명 의무 위반이므로 위약금 없이 해지 가능하며, 초과 청구된 차액도 환불받아야 한다",
+            "위약금을 50% 감면받을 수 있다",
+            "요금제를 변경하는 것만 가능하다"
+        ],
+        correctIndex: 1,
+        explanation: "전기통신사업법에 따라 통신사업자는 이용약관의 주요 내용을 소비자에게 충분히 설명할 의무가 있습니다. 설명 의무를 위반하여 실제 요금이 다른 경우, 소비자는 위약금 없이 계약을 해지할 수 있으며, 초과 청구 금액의 환불도 청구할 수 있습니다.",
+        law: "전기통신사업법 제50조 (이용자 보호)"
+    },
+    {
+        title: "해외직구 위조 브랜드 상품",
+        category: "해외직구",
+        badgeClass: "badge-product",
+        icon: "&#x1F30D;",
+        difficulty: 2,
+        complaint: "해외직구 사이트에서 유명 브랜드 가방을 정가의 60% 할인된 가격으로 구매했습니다. 수령 후 확인해보니 로고 위치와 재질이 정품과 다른 위조품으로 의심됩니다. 해외 판매자에게 연락했으나 응답이 없습니다.",
+        evidence: ["정품 대비 현저히 저렴한 가격", "로고·재질 차이 확인", "해외 판매자 무응답"],
+        question: "이 소비자에게 어떤 안내가 적절한가요?",
+        choices: [
+            "해외 거래이므로 한국 법률이 적용되지 않아 구제가 불가하다",
+            "국제거래 소비자포털을 통해 피해구제를 신청하고, 관세청에 위조품 신고를 안내한다",
+            "해당 브랜드 본사에 직접 연락하도록 안내한다",
+            "카드사에 결제 취소만 요청하면 된다"
+        ],
+        correctIndex: 1,
+        explanation: "한국소비자원 산하 국제거래 소비자포털(crossborder.kca.go.kr)을 통해 해외직구 피해구제를 신청할 수 있습니다. 또한 위조품은 관세청에 신고하여 해당 사이트에 대한 단속을 요청할 수 있으며, 신용카드로 결제한 경우 차지백(chargeback) 서비스도 활용할 수 있습니다.",
+        law: "관세법 제235조 (지식재산권 보호)"
+    },
+    {
+        title: "신축 아파트 하자 분쟁",
+        category: "주거/건설",
+        badgeClass: "badge-housing",
+        icon: "&#x1F3E0;",
+        difficulty: 3,
+        complaint: "입주한 지 6개월 된 신축 아파트에서 거실 바닥 침하, 화장실 누수, 창문 결로 현상이 심각합니다. 시공사에 하자보수를 요청했으나, '생활 하자'라며 보수를 거부하고 있습니다.",
+        evidence: ["입주 6개월 경과", "바닥 침하·누수·결로 사진", "시공사 보수 거부 내역"],
+        question: "소비자의 권리로 올바른 것은?",
+        choices: [
+            "입주 후 3개월이 지났으므로 하자보수 청구권이 소멸되었다",
+            "주택법에 따라 구조적 하자는 10년, 마감 하자는 2~5년 내 하자보수를 청구할 수 있다",
+            "관리사무소를 통해서만 하자보수를 청구할 수 있다",
+            "입주자가 직접 수리 후 비용을 청구하는 것만 가능하다"
+        ],
+        correctIndex: 1,
+        explanation: "주택법 및 공동주택관리법에 따라 내력구조부(기둥, 벽 등)는 10년, 마감공사(바닥, 타일 등)는 2~5년의 하자담보책임기간이 있습니다. 바닥 침하와 누수는 구조적 하자로, 시공사는 반드시 보수해야 할 의무가 있습니다.",
+        law: "공동주택관리법 제36조 (하자담보책임)"
+    },
+    {
+        title: "헬스장 중도 해지 환불",
+        category: "서비스",
+        badgeClass: "badge-product",
+        icon: "&#x1F3CB;",
+        difficulty: 1,
+        complaint: "1년 헬스장 이용권을 120만원에 등록했습니다. 3개월 이용 후 이사로 인해 해지를 요청했더니, 헬스장 측에서 '환불 불가' 약관을 이유로 거부하고 있습니다.",
+        evidence: ["1년 이용권 120만원 결제", "3개월 이용", "이사 증빙 서류"],
+        question: "소비자가 환불받을 수 있을까요?",
+        choices: [
+            "약관에 환불 불가라고 되어 있으므로 환불이 불가하다",
+            "잔여기간에 해당하는 금액에서 위약금 10%를 공제하고 환불받을 수 있다",
+            "전액 환불이 가능하다",
+            "이용 기간만큼만 일할 계산하여 환불하되, 위약금은 부과할 수 없다"
+        ],
+        correctIndex: 1,
+        explanation: "소비자분쟁해결기준에 따르면, 체육시설 이용권의 경우 소비자 사정에 의한 중도 해지 시 잔여기간에 해당하는 금액에서 위약금(총 이용금액의 10%)을 공제하고 환불해야 합니다. '환불 불가' 약관은 소비자에게 불리한 불공정 약관으로 무효입니다.",
+        law: "체육시설의 설치·이용에 관한 법률 제27조"
+    },
+    {
+        title: "자동차 급발진 의심 사고",
+        category: "제품안전",
+        badgeClass: "badge-product",
+        icon: "&#x1F697;",
+        difficulty: 3,
+        complaint: "주차장에서 저속 주행 중 차량이 갑자기 급가속되어 벽을 들이받았습니다. 제조사에 조사를 요청했더니, 블랙박스 영상만으로는 차량 결함을 인정할 수 없다며 운전자 과실로 처리하려 합니다.",
+        evidence: ["블랙박스 영상", "사고 현장 사진", "차량 EDR(이벤트 데이터 기록장치) 미확보"],
+        question: "이 사건의 올바른 처리 방향은?",
+        choices: [
+            "제조사 주장대로 운전자 과실로 처리한다",
+            "한국소비자원에 원인 규명 시험·검사를 의뢰하고, 제조사에 EDR 데이터 제출을 요구한다",
+            "보험사를 통해서만 처리가 가능하다",
+            "운전자가 직접 결함을 증명해야 하므로 사설 감정을 받아야 한다"
+        ],
+        correctIndex: 1,
+        explanation: "한국소비자원은 물품의 안전성에 대한 시험·검사 기능을 수행합니다. 자동차 급발진 의심 사고의 경우, EDR 데이터 분석 등 전문적인 원인 규명 조사를 의뢰할 수 있으며, 제조물책임법에 따라 제조사에 결함 없음을 입증할 책임이 있습니다.",
+        law: "제조물책임법 제3조 (제조물 책임), 소비자기본법 제53조"
+    },
+    {
+        title: "유사 콘도 회원권 계약 해제",
+        category: "서비스/회원권",
+        badgeClass: "badge-finance",
+        icon: "&#x1F3D6;",
+        difficulty: 3,
+        complaint: "길거리 설문조사에 참여했다가 상담실로 안내되어 5시간 동안 콘도 회원권 가입을 강요당했습니다. 결국 300만원짜리 회원권에 가입했으나, 귀가 후 알아보니 실제로는 콘도 이용이 거의 불가능한 유사 회원권이었습니다. 가입 후 3일이 경과했습니다.",
+        evidence: ["가입 경위(강압적 판매)", "가입 후 3일 경과", "유사 콘도 회원권 확인"],
+        question: "소비자가 계약을 해제할 수 있을까요?",
+        choices: [
+            "이미 계약이 성립했으므로 해제가 불가하다",
+            "방문판매법에 따라 14일 이내 청약철회가 가능하며, 강압적 판매 행위도 신고해야 한다",
+            "위약금 50%를 내고 해제할 수 있다",
+            "회원권을 제3자에게 양도하는 것만 가능하다"
+        ],
+        correctIndex: 1,
+        explanation: "방문판매 등에 관한 법률에 따라, 방문판매·다단계판매 등의 경우 14일 이내 무조건 청약철회가 가능합니다. 또한 5시간 강압적 판매는 '강요에 의한 계약'으로 불공정 거래행위에 해당하여 공정위에 신고 조치가 필요합니다.",
+        law: "방문판매법 제8조 (청약철회), 제11조 (금지행위)"
+    }
+];
+
+let currentCase = 0;
+let score = 0;
+let correctAnswers = 0;
+let answered = 0;
+let shuffledCases = [];
+
+function shuffleArray(arr) {
+    const shuffled = [...arr];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+}
+
+function startGame() {
+    currentCase = 0;
+    score = 0;
+    correctAnswers = 0;
+    answered = 0;
+    shuffledCases = shuffleArray(cases);
+
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('game-screen').style.display = 'block';
+    document.getElementById('result-screen').style.display = 'none';
+
+    updateStats();
+    renderCase();
+}
+
+function updateStats() {
+    document.getElementById('score').textContent = score;
+    document.getElementById('correct-count').textContent = correctAnswers;
+    document.getElementById('total-answered').textContent = answered;
+    document.getElementById('progress-fill').style.width = `${(currentCase / shuffledCases.length) * 100}%`;
+    document.getElementById('progress-text').textContent = `사건 ${currentCase + 1} / ${shuffledCases.length}`;
+
+    // 직급 업데이트
+    let rank = '수습 담당관';
+    if (score >= 800) rank = '수석 조사관';
+    else if (score >= 600) rank = '선임 조사관';
+    else if (score >= 400) rank = '조사관';
+    else if (score >= 200) rank = '주임 담당관';
+    document.getElementById('player-rank').textContent = rank;
+}
+
+function renderCase() {
+    const c = shuffledCases[currentCase];
+    const difficultyDots = Array.from({length: 3}, (_, i) =>
+        `<div class="difficulty-dot ${i < c.difficulty ? 'active' : ''}"></div>`
+    ).join('');
+
+    const evidenceChips = c.evidence.map(e => `<div class="evidence-chip">${e}</div>`).join('');
+
+    const choiceButtons = c.choices.map((choice, i) =>
+        `<button class="choice-btn" onclick="selectChoice(${i})" id="choice-${i}">
+            <span class="choice-number">${i + 1}</span>
+            <span>${choice}</span>
+        </button>`
+    ).join('');
+
+    document.getElementById('case-container').innerHTML = `
+        <div class="case-card">
+            <div class="case-header">
+                <div class="case-badge ${c.badgeClass}">${c.icon}</div>
+                <div class="case-title-area">
+                    <h2>${c.title}</h2>
+                    <div class="case-category">
+                        ${c.category} &nbsp;|&nbsp; 난이도 <div class="difficulty-dots">${difficultyDots}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="case-body">
+                <div class="complaint-box">
+                    <div class="complaint-label">&#x1F4E9; 접수된 민원</div>
+                    <div class="complaint-text">${c.complaint}</div>
+                </div>
+                <div class="evidence-section">
+                    <div class="evidence-title">&#x1F4CE; 제출 증빙자료</div>
+                    <div class="evidence-chips">${evidenceChips}</div>
+                </div>
+                <div class="question-text">${c.question}</div>
+                <div class="choices">${choiceButtons}</div>
+                <div class="feedback-box" id="feedback-box"></div>
+            </div>
+        </div>
+    `;
+}
+
+function selectChoice(index) {
+    const c = shuffledCases[currentCase];
+    const isCorrect = index === c.correctIndex;
+    const buttons = document.querySelectorAll('.choice-btn');
+
+    buttons.forEach(btn => btn.disabled = true);
+    buttons[index].classList.add(isCorrect ? 'correct' : 'wrong');
+    if (!isCorrect) {
+        buttons[c.correctIndex].classList.add('correct');
+    }
+
+    answered++;
+    if (isCorrect) {
+        correctAnswers++;
+        const baseScore = c.difficulty * 30 + 10;
+        score += baseScore;
+    }
+
+    const feedbackBox = document.getElementById('feedback-box');
+    feedbackBox.className = `feedback-box show ${isCorrect ? 'feedback-correct' : 'feedback-wrong'}`;
+    feedbackBox.innerHTML = `
+        <div class="feedback-title">${isCorrect ? '&#x2705; 정확한 판단입니다!' : '&#x26A0;&#xFE0F; 아쉬운 판단입니다'}</div>
+        <div class="feedback-text">${c.explanation}</div>
+        <div class="feedback-law">&#x2696;&#xFE0F; <span>${c.law}</span></div>
+        <button class="btn btn-next" onclick="nextCase()">
+            ${currentCase < shuffledCases.length - 1 ? '다음 사건 &#x27A1;&#xFE0F;' : '최종 결과 보기'}
+        </button>
+    `;
+
+    updateStats();
+    feedbackBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function nextCase() {
+    currentCase++;
+    if (currentCase >= shuffledCases.length) {
+        showResult();
+    } else {
+        updateStats();
+        renderCase();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function showResult() {
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('result-screen').style.display = 'block';
+
+    const percentage = Math.round((correctAnswers / shuffledCases.length) * 100);
+    let emoji, title, rank, message;
+
+    if (percentage >= 90) {
+        emoji = '&#x1F3C6;';
+        title = '완벽한 소비자 수호자!';
+        rank = '수석 조사관 임명';
+        message = '탁월한 법률 지식과 판단력으로 모든 소비자의 권익을 완벽하게 보호했습니다. 한국소비자원의 에이스로 인정받았습니다!';
+    } else if (percentage >= 70) {
+        emoji = '&#x1F31F;';
+        title = '우수한 담당관!';
+        rank = '선임 조사관 승진';
+        message = '대부분의 사건을 정확하게 처리했습니다. 소비자 보호에 대한 깊은 이해를 보여주었습니다. 조금 더 공부하면 최고의 조사관이 될 수 있습니다!';
+    } else if (percentage >= 50) {
+        emoji = '&#x1F4AA;';
+        title = '성장하는 담당관';
+        rank = '조사관 승진';
+        message = '기본적인 소비자 보호 지식은 갖추고 있지만, 일부 복잡한 사안에서는 추가 학습이 필요합니다. 꾸준히 경험을 쌓아보세요!';
+    } else {
+        emoji = '&#x1F4DA;';
+        title = '수습 기간 연장';
+        rank = '수습 담당관 유지';
+        message = '소비자 보호법과 관련 규정에 대한 학습이 더 필요합니다. 하지만 걱정하지 마세요! 한국소비자원 홈페이지(kca.go.kr)에서 다양한 사례를 학습할 수 있습니다.';
+    }
+
+    document.getElementById('result-card').innerHTML = `
+        <div class="result-emoji">${emoji}</div>
+        <h2 class="result-title">${title}</h2>
+        <div class="result-rank">${rank}</div>
+
+        <div class="result-score-circle">
+            <div class="result-score-number">${score}</div>
+            <div class="result-score-label">총점</div>
+        </div>
+
+        <div class="result-stats">
+            <div class="result-stat">
+                <div class="result-stat-value">${correctAnswers}</div>
+                <div class="result-stat-label">정답 수</div>
+            </div>
+            <div class="result-stat">
+                <div class="result-stat-value">${shuffledCases.length - correctAnswers}</div>
+                <div class="result-stat-label">오답 수</div>
+            </div>
+            <div class="result-stat">
+                <div class="result-stat-value">${percentage}%</div>
+                <div class="result-stat-label">정답률</div>
+            </div>
+        </div>
+
+        <div class="result-message">${message}</div>
+
+        <div class="result-tips">
+            <h3>&#x1F4A1; 소비자 피해 예방 꿀팁</h3>
+            <div class="tip-item">
+                <span class="tip-icon">&#x260E;&#xFE0F;</span>
+                <span>소비자 상담은 <strong>1372</strong>로 전화하세요 (전국 어디서나)</span>
+            </div>
+            <div class="tip-item">
+                <span class="tip-icon">&#x1F4BB;</span>
+                <span>온라인 피해구제는 <strong>kca.go.kr/odr</strong>에서 신청 가능합니다</span>
+            </div>
+            <div class="tip-item">
+                <span class="tip-icon">&#x1F6D2;</span>
+                <span>전자상거래 구매 시 <strong>7일 이내 청약철회</strong> 권리를 기억하세요</span>
+            </div>
+            <div class="tip-item">
+                <span class="tip-icon">&#x1F30D;</span>
+                <span>해외직구 피해는 <strong>국제거래 소비자포털</strong>을 이용하세요</span>
+            </div>
+            <div class="tip-item">
+                <span class="tip-icon">&#x1F4F8;</span>
+                <span>거래 시 <strong>계약서, 영수증, 대화 내역</strong>을 반드시 보관하세요</span>
+            </div>
+        </div>
+
+        <button class="btn btn-restart" onclick="restartGame()">다시 도전하기</button>
+    `;
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function restartGame() {
+    document.getElementById('result-screen').style.display = 'none';
+    document.getElementById('start-screen').style.display = 'flex';
+}
+</script>
+
+</body>
+</html>
