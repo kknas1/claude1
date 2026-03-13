@@ -1,0 +1,17 @@
+{
+    "keywords": [
+        "fender",
+        "gibson",
+        "stratocaster",
+        "telecaster",
+        "les paul",
+        "PRS",
+        "suhr"
+    ],
+    "boards": ["sell", "buy"],
+    "interval_seconds": 300,
+    "telegram": {
+        "bot_token": "여기에_봇토큰_입력",
+        "chat_id": "여기에_채팅ID_입력"
+    }
+}
