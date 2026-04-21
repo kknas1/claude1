@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>영수증 · 결재내역 · 계약서 데이터 추출</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --line: #e3e5ea;
+    --text: #1a1d22;
+    --muted: #5b6470;
+    --accent: #2d6cdf;
+    --accent-hover: #1f57bf;
+    --danger: #d93636;
+    --warn-bg: #fff7e6;
+    --warn-border: #f1c889;
+    --warn-text: #8a5a00;
+    --color-merchant: #2e7d32;
+    --color-date: #1565c0;
+    --color-total: #c62828;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+                 "Malgun Gothic", "Noto Sans KR", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+  header .sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 2px;
+  }
+
+  .api-key-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .api-key-area input {
+    width: 280px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font: inherit;
+    background: #fafbfc;
+  }
+  .api-key-area input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: #fff;
+  }
+
+  button {
+    font: inherit;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--text);
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  button:hover { background: #f1f3f7; }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  main {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 20px;
+    padding: 24px 28px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 12px;
+  }
+
+  .dropzone {
+    border: 2px dashed #c4c9d2;
+    border-radius: var(--radius);
+    padding: 36px 24px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .dropzone:hover, .dropzone.drag { background: #eef3fb; border-color: var(--accent); color: var(--accent); }
+  .dropzone strong { display: block; color: var(--text); margin-bottom: 4px; font-weight: 500; }
+  .dropzone input[type=file] { display: none; }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 14px;
+  }
+  .toolbar .filename { color: var(--muted); font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .canvas-wrap {
+    margin-top: 16px;
+    background: #f0f1f4;
+    border-radius: var(--radius);
+    padding: 12px;
+    overflow: auto;
+    text-align: center;
+    min-height: 120px;
+  }
+  .canvas-wrap canvas { max-width: 100%; height: auto; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+  .status {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: none;
+  }
+  .status.show { display: block; }
+  .status.info  { background: #e8f0fe; color: #194b9a; }
+  .status.error { background: #fdecec; color: var(--danger); }
+  .status.warn  { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); }
+
+  .doc-type-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #eef2f7;
+    color: var(--muted);
+  }
+  .doc-type-badge.match { background: #e6f4ea; color: #1b5e20; }
+  .doc-type-badge.miss  { background: #fdecec; color: var(--danger); }
+
+  .field-list { margin: 0; padding: 0; list-style: none; }
+  .field-list li {
+    display: grid;
+    grid-template-columns: 92px 1fr;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    align-items: center;
+  }
+  .field-list li:last-child { border-bottom: none; }
+  .field-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .swatch.merchant { background: var(--color-merchant); }
+  .swatch.date     { background: var(--color-date); }
+  .swatch.total    { background: var(--color-total); }
+  .field-value {
+    font-size: 15px;
+    word-break: break-word;
+  }
+  .field-value.empty { color: #aaa; font-style: italic; font-size: 13px; }
+
+  .placeholder {
+    color: var(--muted);
+    text-align: center;
+    padding: 30px 10px;
+    font-size: 13px;
+  }
+
+  details.debug {
+    margin-top: 16px;
+    background: #fafbfc;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  details.debug pre {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px;
+    overflow: auto;
+    max-height: 240px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(0,0,0,0.15);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 880px) {
+    main { grid-template-columns: 1fr; }
+    header { flex-direction: column; align-items: flex-start; }
+    .api-key-area input { width: 100%; }
+    .api-key-area { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>영수증 · 결재내역 · 계약서 데이터 추출</h1>
+    <div class="sub">이미지를 업로드하면 문서 종류를 판별하고 총 금액·구매일·구매처를 추출합니다.</div>
+  </div>
+  <div class="api-key-area">
+    <input id="apiKey" type="password" placeholder="Anthropic API 키 (sk-ant-...)" autocomplete="off" />
+    <button id="saveKeyBtn">저장</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>이미지</h2>
+
+    <label class="dropzone" id="dropzone" for="fileInput">
+      <strong>이미지를 드래그하거나 클릭하여 업로드</strong>
+      JPG, PNG, WEBP, GIF (최대 ~5MB 권장)
+      <input id="fileInput" type="file" accept="image/*" />
+    </label>
+
+    <div class="toolbar">
+      <button id="analyzeBtn" class="primary" disabled>분석하기</button>
+      <button id="clearBtn">초기화</button>
+      <span class="filename" id="fileName"></span>
+    </div>
+
+    <div class="canvas-wrap" id="canvasWrap">
+      <div class="placeholder" id="canvasPlaceholder">업로드한 이미지가 여기에 표시됩니다.</div>
+      <canvas id="canvas" style="display:none"></canvas>
+    </div>
+
+    <div class="status" id="status"></div>
+  </section>
+
+  <section class="panel">
+    <h2>분석 결과</h2>
+    <div id="resultArea">
+      <div class="placeholder">아직 분석된 결과가 없습니다.</div>
+    </div>
+    <details class="debug" id="debugBlock" style="display:none">
+      <summary>원본 응답 보기</summary>
+      <pre id="debugContent"></pre>
+    </details>
+  </section>
+</main>
+
+<script>
+(function () {
+  const STORAGE_KEY = "anthropic_api_key";
+  const MODEL = "claude-sonnet-4-6";
+
+  const FIELD_META = {
+    merchant: { label: "구매처", color: "#2e7d32", className: "merchant" },
+    date:     { label: "구매일", color: "#1565c0", className: "date" },
+    total:    { label: "총 금액", color: "#c62828", className: "total" },
+  };
+
+  const DOC_TYPE_LABEL = {
+    receipt:        "영수증",
+    payment_record: "결재 내역",
+    contract:       "계약서",
+    other:          "기타 (대상 아님)",
+  };
+
+  const els = {
+    apiKey: document.getElementById("apiKey"),
+    saveKeyBtn: document.getElementById("saveKeyBtn"),
+    dropzone: document.getElementById("dropzone"),
+    fileInput: document.getElementById("fileInput"),
+    fileName: document.getElementById("fileName"),
+    analyzeBtn: document.getElementById("analyzeBtn"),
+    clearBtn: document.getElementById("clearBtn"),
+    canvas: document.getElementById("canvas"),
+    canvasPlaceholder: document.getElementById("canvasPlaceholder"),
+    canvasWrap: document.getElementById("canvasWrap"),
+    status: document.getElementById("status"),
+    resultArea: document.getElementById("resultArea"),
+    debugBlock: document.getElementById("debugBlock"),
+    debugContent: document.getElementById("debugContent"),
+  };
+
+  let currentImage = null;       // HTMLImageElement
+  let currentImageBase64 = null; // base64 (without data: prefix)
+  let currentImageMime = null;   // e.g. "image/jpeg"
+
+  // ---------- API key ----------
+  const savedKey = localStorage.getItem(STORAGE_KEY);
+  if (savedKey) els.apiKey.value = savedKey;
+
+  els.saveKeyBtn.addEventListener("click", () => {
+    const key = els.apiKey.value.trim();
+    if (!key) {
+      localStorage.removeItem(STORAGE_KEY);
+      showStatus("API 키를 삭제했습니다.", "warn");
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY, key);
+    showStatus("API 키를 저장했습니다.", "info");
+  });
+
+  // ---------- File handling ----------
+  els.fileInput.addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) loadFile(file);
+  });
+
+  ["dragenter", "dragover"].forEach(ev =>
+    els.dropzone.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      els.dropzone.classList.add("drag");
+    })
+  );
+  ["dragleave", "drop"].forEach(ev =>
+    els.dropzone.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      els.dropzone.classList.remove("drag");
+    })
+  );
+  els.dropzone.addEventListener("drop", (e) => {
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  });
+
+  els.clearBtn.addEventListener("click", resetAll);
+
+  function loadFile(file) {
+    if (!file.type.startsWith("image/")) {
+      showStatus("이미지 파일만 업로드 가능합니다.", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const commaIdx = dataUrl.indexOf(",");
+      currentImageMime = dataUrl.substring(5, dataUrl.indexOf(";"));
+      currentImageBase64 = dataUrl.substring(commaIdx + 1);
+
+      const img = new Image();
+      img.onload = () => {
+        currentImage = img;
+        renderImageOnCanvas(img, null);
+        els.fileName.textContent = file.name + " (" + img.naturalWidth + "×" + img.naturalHeight + ")";
+        els.analyzeBtn.disabled = false;
+        clearStatus();
+        clearResults();
+      };
+      img.onerror = () => showStatus("이미지를 읽을 수 없습니다.", "error");
+      img.src = dataUrl;
+    };
+    reader.onerror = () => showStatus("파일 읽기 실패.", "error");
+    reader.readAsDataURL(file);
+  }
+
+  function renderImageOnCanvas(img, fields) {
+    const canvas = els.canvas;
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.style.display = "inline-block";
+    els.canvasPlaceholder.style.display = "none";
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+
+    if (!fields) return;
+
+    const W = canvas.width, H = canvas.height;
+    const lineWidth = Math.max(2, Math.round(Math.min(W, H) / 400));
+    const fontSize = Math.max(14, Math.round(Math.min(W, H) / 60));
+    ctx.font = "600 " + fontSize + "px -apple-system, sans-serif";
+    ctx.textBaseline = "top";
+
+    Object.keys(FIELD_META).forEach((key) => {
+      const f = fields[key];
+      if (!f || !f.bbox || f.value == null) return;
+      const meta = FIELD_META[key];
+
+      let x = clamp01(f.bbox.x) * W;
+      let y = clamp01(f.bbox.y) * H;
+      let w = clamp01(f.bbox.width)  * W;
+      let h = clamp01(f.bbox.height) * H;
+      if (x + w > W) w = W - x;
+      if (y + h > H) h = H - y;
+      if (w <= 0 || h <= 0) return;
+
+      ctx.lineWidth = lineWidth;
+      ctx.strokeStyle = meta.color;
+      ctx.strokeRect(x, y, w, h);
+
+      const labelText = meta.label + ": " + String(f.value);
+      const padX = 6, padY = 4;
+      const textW = ctx.measureText(labelText).width;
+      const labelW = textW + padX * 2;
+      const labelH = fontSize + padY * 2;
+      let labelY = y - labelH;
+      if (labelY < 0) labelY = y; // overflow → put inside
+      ctx.fillStyle = meta.color;
+      ctx.fillRect(x, labelY, labelW, labelH);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(labelText, x + padX, labelY + padY);
+    });
+  }
+
+  function clamp01(v) {
+    if (typeof v !== "number" || isNaN(v)) return 0;
+    if (v < 0) return 0;
+    if (v > 1) return 1;
+    return v;
+  }
+
+  // ---------- Analyze ----------
+  els.analyzeBtn.addEventListener("click", analyze);
+
+  async function analyze() {
+    const apiKey = els.apiKey.value.trim();
+    if (!apiKey) {
+      showStatus("Anthropic API 키를 먼저 입력해주세요.", "error");
+      return;
+    }
+    if (!currentImageBase64) {
+      showStatus("이미지를 먼저 업로드해주세요.", "error");
+      return;
+    }
+
+    setBusy(true);
+    showStatus('<span class="spinner"></span>Claude Vision으로 분석 중...', "info");
+
+    try {
+      const result = await callClaude(apiKey, currentImageBase64, currentImageMime);
+      renderResult(result);
+      clearStatus();
+    } catch (err) {
+      console.error(err);
+      showStatus("오류: " + (err && err.message ? err.message : String(err)), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function setBusy(on) {
+    els.analyzeBtn.disabled = on || !currentImageBase64;
+    els.clearBtn.disabled = on;
+  }
+
+  async function callClaude(apiKey, imageB64, mime) {
+    const systemPrompt =
+      "당신은 한국어/영어 문서 이미지를 분석하는 전문가입니다. " +
+      "제공된 이미지를 분석하여 다음을 수행하세요:\n" +
+      "1) 이미지가 어떤 문서인지 분류: receipt(영수증), payment_record(결제/결재 내역), contract(계약서), 또는 other(그 외).\n" +
+      "2) receipt/payment_record/contract 중 하나라면 is_target_document=true.\n" +
+      "3) 다음 3개 필드를 추출하고, 각 필드 값이 이미지에 있는 위치를 bounding box로 표시하세요:\n" +
+      "   - merchant: 가게/사업자/상호/계약 당사자명 (문서 상단에 보통 위치)\n" +
+      "   - date: 구매일/결제일/계약일 (가장 대표적인 날짜 하나)\n" +
+      "   - total: 총 금액/합계/계약 금액 (단위 포함, 예: '12,500원')\n" +
+      "4) bbox 좌표 형식: 이미지 좌상단을 (0,0), 우하단을 (1,1)로 하는 정규화 좌표.\n" +
+      "   x, y = 박스 좌상단 모서리, width, height = 박스 크기. 모두 0.0~1.0.\n" +
+      "5) 필드 값을 찾을 수 없으면 value를 null로 두고 bbox는 생략.\n" +
+      "6) other인 경우에도 fields는 빈 객체 {}로 반환.\n\n" +
+      "응답은 반드시 아래 JSON 스키마만, 다른 텍스트 없이 출력:\n" +
+      '{\n' +
+      '  "document_type": "receipt|payment_record|contract|other",\n' +
+      '  "is_target_document": true,\n' +
+      '  "fields": {\n' +
+      '    "merchant": {"value": "string|null", "bbox": {"x":0.0,"y":0.0,"width":0.0,"height":0.0}},\n' +
+      '    "date":     {"value": "string|null", "bbox": {"x":0.0,"y":0.0,"width":0.0,"height":0.0}},\n' +
+      '    "total":    {"value": "string|null", "bbox": {"x":0.0,"y":0.0,"width":0.0,"height":0.0}}\n' +
+      '  }\n' +
+      '}';
+
+    const body = {
+      model: MODEL,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mime, data: imageB64 } },
+          { type: "text", text: "이 이미지를 위 지시에 따라 분석하고 JSON만 반환하세요." }
+        ]
+      }]
+    };
+
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const raw = await resp.text();
+    if (!resp.ok) {
+      throw new Error("API 호출 실패 (" + resp.status + "): " + raw);
+    }
+
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch (e) { throw new Error("API 응답 JSON 파싱 실패: " + raw); }
+
+    const text = (parsed.content && parsed.content[0] && parsed.content[0].text) || "";
+    showDebug(text);
+
+    const cleaned = stripCodeFence(text).trim();
+    let result;
+    try { result = JSON.parse(cleaned); }
+    catch (e) {
+      throw new Error("모델 응답이 JSON 형식이 아닙니다. 디버그 패널을 확인하세요.");
+    }
+    return result;
+  }
+
+  function stripCodeFence(s) {
+    let t = s.trim();
+    if (t.startsWith("```")) {
+      t = t.replace(/^```(json)?\s*/i, "");
+      if (t.endsWith("```")) t = t.substring(0, t.length - 3);
+    }
+    return t.trim();
+  }
+
+  // ---------- Render result ----------
+  function renderResult(result) {
+    const docType = result.document_type || "other";
+    const isTarget = !!result.is_target_document && docType !== "other";
+    const fields = result.fields || {};
+
+    let html = "";
+    html += '<div style="margin-bottom:14px">';
+    html += '문서 종류: <span class="doc-type-badge ' + (isTarget ? "match" : "miss") + '">'
+         + (DOC_TYPE_LABEL[docType] || docType) + '</span>';
+    html += '</div>';
+
+    if (!isTarget) {
+      html += '<div class="status warn show" style="margin-top:0">'
+           + '영수증 · 결재 내역 · 계약서가 아닌 것으로 판단되어 데이터를 추출하지 않습니다.'
+           + '</div>';
+      els.resultArea.innerHTML = html;
+      renderImageOnCanvas(currentImage, null);
+      return;
+    }
+
+    html += '<ul class="field-list">';
+    Object.keys(FIELD_META).forEach((key) => {
+      const meta = FIELD_META[key];
+      const f = fields[key] || {};
+      const val = f.value;
+      html += '<li>'
+           +   '<span class="field-label"><span class="swatch ' + meta.className + '"></span>' + meta.label + '</span>'
+           +   (val != null && String(val).trim() !== ""
+                 ? '<span class="field-value">' + escapeHtml(String(val)) + '</span>'
+                 : '<span class="field-value empty">(찾지 못함)</span>')
+           + '</li>';
+    });
+    html += '</ul>';
+
+    els.resultArea.innerHTML = html;
+    renderImageOnCanvas(currentImage, fields);
+  }
+
+  function clearResults() {
+    els.resultArea.innerHTML = '<div class="placeholder">아직 분석된 결과가 없습니다.</div>';
+    els.debugBlock.style.display = "none";
+    els.debugContent.textContent = "";
+  }
+
+  function resetAll() {
+    currentImage = null;
+    currentImageBase64 = null;
+    currentImageMime = null;
+    els.fileInput.value = "";
+    els.fileName.textContent = "";
+    els.analyzeBtn.disabled = true;
+    els.canvas.style.display = "none";
+    els.canvasPlaceholder.style.display = "block";
+    clearStatus();
+    clearResults();
+  }
+
+  // ---------- Helpers ----------
+  function showStatus(msg, kind) {
+    els.status.className = "status show " + (kind || "info");
+    els.status.innerHTML = msg;
+  }
+  function clearStatus() {
+    els.status.className = "status";
+    els.status.innerHTML = "";
+  }
+  function showDebug(text) {
+    els.debugContent.textContent = text;
+    els.debugBlock.style.display = "block";
+  }
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    })[c]);
+  }
+})();
+</script>
+
+</body>
+</html>
