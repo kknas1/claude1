@@ -112,6 +112,8 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     padding: 18px;
+    min-width: 0;      /* allow grid cell to shrink, prevents horizontal blowout */
+    overflow: hidden;  /* contain children (e.g., long filenames, large canvas) */
   }
   .panel h2 {
     font-size: 13px;
@@ -123,9 +125,12 @@
   }
 
   .dropzone {
+    display: block;           /* <label> defaults to inline — force block */
+    width: 100%;
+    box-sizing: border-box;
     border: 2px dashed #c4c9d2;
     border-radius: var(--radius);
-    padding: 36px 24px;
+    padding: 28px 16px;
     text-align: center;
     color: var(--muted);
     cursor: pointer;
@@ -597,18 +602,27 @@
       "1) 문서 종류: receipt(영수증), payment_record(결제/결재 내역), contract(계약서), other(그 외)\n" +
       "2) receipt/payment_record/contract 중 하나면 is_target_document=true\n" +
       "3) 필드별로 정제된 value와 word_indices를 반환:\n" +
-      "   - merchant: 가게/사업자/상호/계약 당사자명\n" +
-      "   - date: 구매일/결제일/계약일 (가장 대표적인 날짜. 원문 형식 또는 YYYY-MM-DD)\n" +
-      "   - total: 최종 결제 금액 (공급가액/부가세/소계가 아님, 단위 포함 예: '23,000원')\n" +
+      "   - merchant: 가게/사업자/상호/계약 당사자명 (점포코드/번호/괄호 제외)\n" +
+      "   - date: 구매일/결제일/계약일. 날짜만 (시간·요일·'판매'같은 라벨 제외). 형식은 원문 또는 YYYY-MM-DD\n" +
+      "   - total: 최종 결제 금액만. 공급가액·부가세·소계 아님. 금액 숫자+통화만 (예: '₩2,600', '23,000원')\n" +
       "\n" +
-      "★ word_indices 선택 규칙 (매우 중요):\n" +
-      "   - value를 구성하는 실제 단어들의 인덱스만 포함\n" +
-      "   - 라벨 단어(예: '총액', '결제금액', '거래일시')는 절대 포함하지 말 것\n" +
-      "   - 주변 단어, 구분선, 헤더도 포함하지 말 것\n" +
-      "   - 가능한 한 최소 개수의 단어만 선택 (값이 한 단어면 인덱스 1개)\n" +
-      "   - 예) '23,000원' 한 단어면 word_indices: [53]\n" +
-      "   - 예) '2026-04-20 12:19:59' 두 단어면 word_indices: [15, 16]\n" +
-      "   - 예) 상호명 '어 컵 오브 조' 네 단어면 word_indices: [1,2,3,4]\n" +
+      "★★ word_indices 엄격 규칙 (반드시 준수):\n" +
+      "   (A) value 문자열을 구성하는 '핵심 단어'의 인덱스만 포함한다.\n" +
+      "   (B) value에 포함되지 않은 텍스트의 단어는 절대 포함하지 않는다.\n" +
+      "   (C) 특히 다음은 word_indices에서 반드시 제외:\n" +
+      "       · 라벨 단어: '총액','합계','결제금액','금액','거래일시','구매일','[판매]','[매출]','일시불' 등\n" +
+      "       · 시간: '11:01:11', '12:19:59' 같은 HH:MM:SS (date 필드가 날짜만일 때)\n" +
+      "       · 요일/괄호: '(수)', '(금)', '(-)' 등\n" +
+      "       · 점포코드/사업자번호: '#53184', '894-29-01521', '8510401195' (merchant value에 포함되지 않는 한)\n" +
+      "       · 통화 기호가 별도 단어면 금액 숫자 단어만 선택 (단, 한 단어로 붙어있으면 그 단어 사용)\n" +
+      "   (D) 선택한 단어들의 텍스트를 공백으로 이어붙였을 때 value와 사실상 동일해야 한다.\n" +
+      "   (E) 최소 단어 개수를 사용한다. 한 단어로 표현 가능하면 1개만 선택.\n" +
+      "\n" +
+      "예시:\n" +
+      "   · OCR: L3: [12]합계 [13]₩2,600        → total.value='₩2,600', word_indices=[13]  (합계 제외)\n" +
+      "   · OCR: L4: [20][판매] [21]2026-03-18 [22](수) [23]11:01:11  → date.value='2026-03-18', word_indices=[21]\n" +
+      "   · OCR: L0: [0]세븐일레븐 [1]유성디티비안S점#53184  → merchant.value='세븐일레븐 유성디티비안S점', word_indices=[0]  (단, OCR이 한 단어로 '유성디티비안S점#53184'를 합쳤다면 어쩔 수 없이 [0,1] 사용; 가능한 한 코드 제외)\n" +
+      "   · OCR: L5: [30]결제금액 [31]23,000원  → total.value='23,000원', word_indices=[31]\n" +
       "\n" +
       "4) 값이 없으면 value=null, word_indices=[]\n" +
       "5) OCR 오탈자는 이미지를 참고해 value에서만 정정. word_indices는 OCR 원본 인덱스 그대로 사용.\n" +
