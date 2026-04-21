@@ -481,21 +481,41 @@
   async function runOCR(imgEl) {
     const worker = await ensureOcrWorker();
     const { data } = await worker.recognize(imgEl);
-    // Extract lines with pixel-level bboxes (x0,y0,x1,y1 in original image coords)
-    const lines = (data.lines || [])
-      .map((l) => ({
-        text: (l.text || "").replace(/\s+/g, " ").trim(),
-        bbox: {
-          x: l.bbox.x0,
-          y: l.bbox.y0,
-          w: l.bbox.x1 - l.bbox.x0,
-          h: l.bbox.y1 - l.bbox.y0,
-        },
-        confidence: l.confidence,
-      }))
-      .filter((l) => l.text.length > 0);
-    // Re-index after filtering
-    return lines.map((l, i) => ({ index: i, ...l }));
+    // Build word list (global index) + group-by-line for prompt readability
+    const words = [];
+    const lineGroups = []; // { lineIdx, wordIndices: [..] }
+
+    (data.lines || []).forEach((line, lineIdx) => {
+      const group = { lineIdx, wordIndices: [] };
+      (line.words || []).forEach((w) => {
+        const t = (w.text || "").trim();
+        if (!t) return;
+        const idx = words.length;
+        words.push({
+          index: idx,
+          text: t,
+          lineIdx: lineIdx,
+          bbox: {
+            x: w.bbox.x0,
+            y: w.bbox.y0,
+            w: w.bbox.x1 - w.bbox.x0,
+            h: w.bbox.y1 - w.bbox.y0,
+          },
+          confidence: w.confidence,
+        });
+        group.wordIndices.push(idx);
+      });
+      if (group.wordIndices.length > 0) lineGroups.push(group);
+    });
+
+    return { words, lineGroups };
+  }
+
+  // Render OCR words grouped by line for a compact, readable prompt block
+  function formatOcrForPrompt(words, lineGroups) {
+    return lineGroups
+      .map((g) => "L" + g.lineIdx + ": " + g.wordIndices.map((i) => "[" + i + "]" + words[i].text).join(" "))
+      .join("\n");
   }
 
   // ---------- Analyze ----------
@@ -515,32 +535,36 @@
     setBusy(true);
 
     try {
-      // Step 1: OCR with Tesseract — real pixel bboxes per line
-      const lines = await runOCR(currentImage);
-      if (lines.length === 0) {
+      // Step 1: OCR with Tesseract — word-level pixel bboxes
+      const { words, lineGroups } = await runOCR(currentImage);
+      if (words.length === 0) {
         throw new Error("OCR 결과가 없습니다. 이미지 화질/대비를 확인해주세요.");
       }
 
-      // Step 2: Claude picks which line indices correspond to each field
+      // Step 2: Claude picks which word indices belong to each field
       showStatus('<span class="spinner"></span>Claude로 필드 판별 중...', "info");
-      const llmResult = await callClaudeWithLines(apiKey, currentImageBase64, currentImageMime, lines);
+      const llmResult = await callClaudeWithWords(apiKey, currentImageBase64, currentImageMime, words, lineGroups);
 
-      // Step 3: Convert line_indices → pixel bbox (union)
+      // Step 3: Convert word_indices → pixel bbox (union of selected words)
       const fieldsPx = {};
       Object.keys(FIELD_META).forEach((key) => {
         const f = (llmResult.fields && llmResult.fields[key]) || {};
-        const idxs = Array.isArray(f.line_indices) ? f.line_indices : [];
-        const selected = idxs
-          .map((i) => lines[i])
-          .filter(Boolean);
+        const idxs = Array.isArray(f.word_indices) ? f.word_indices : [];
+        const selected = idxs.map((i) => words[i]).filter(Boolean);
         if (selected.length > 0 && f.value) {
-          const x  = Math.min(...selected.map((l) => l.bbox.x));
-          const y  = Math.min(...selected.map((l) => l.bbox.y));
-          const x2 = Math.max(...selected.map((l) => l.bbox.x + l.bbox.w));
-          const y2 = Math.max(...selected.map((l) => l.bbox.y + l.bbox.h));
-          fieldsPx[key] = { value: f.value, bboxPx: { x, y, w: x2 - x, h: y2 - y }, line_indices: idxs };
+          const x  = Math.min(...selected.map((w) => w.bbox.x));
+          const y  = Math.min(...selected.map((w) => w.bbox.y));
+          const x2 = Math.max(...selected.map((w) => w.bbox.x + w.bbox.w));
+          const y2 = Math.max(...selected.map((w) => w.bbox.y + w.bbox.h));
+          // Small padding for visibility
+          const pad = Math.max(2, Math.round(Math.min(currentImage.naturalWidth, currentImage.naturalHeight) / 400));
+          fieldsPx[key] = {
+            value: f.value,
+            bboxPx: { x: x - pad, y: y - pad, w: (x2 - x) + pad * 2, h: (y2 - y) + pad * 2 },
+            word_indices: idxs,
+          };
         } else {
-          fieldsPx[key] = { value: f.value || null, bboxPx: null, line_indices: idxs };
+          fieldsPx[key] = { value: f.value || null, bboxPx: null, word_indices: idxs };
         }
       });
 
@@ -563,31 +587,40 @@
     els.clearBtn.disabled = on;
   }
 
-  async function callClaudeWithLines(apiKey, imageB64, mime, lines) {
-    const ocrText = lines
-      .map((l) => "[" + l.index + "] " + l.text)
-      .join("\n");
+  async function callClaudeWithWords(apiKey, imageB64, mime, words, lineGroups) {
+    const ocrBlock = formatOcrForPrompt(words, lineGroups);
 
     const systemPrompt =
-      "당신은 한국어/영어 문서 분석가입니다. 아래 이미지와 그 이미지의 OCR 결과(라인별 인덱스 + 텍스트)가 주어집니다.\n" +
+      "당신은 한국어/영어 문서 분석가입니다. 이미지와 함께 OCR 결과가 주어집니다.\n" +
+      "OCR은 라인별로 그룹화된 단어들의 배열이며, 각 단어는 [고유인덱스]텍스트 형식입니다.\n\n" +
       "수행할 작업:\n" +
-      "1) 문서 종류 분류: receipt(영수증), payment_record(결제/결재 내역), contract(계약서), other(그 외)\n" +
-      "2) receipt/payment_record/contract 중 하나라면 is_target_document=true\n" +
-      "3) 다음 3개 필드의 정제된 value와, 그 값이 포함된 OCR 라인 인덱스(line_indices)를 반환:\n" +
+      "1) 문서 종류: receipt(영수증), payment_record(결제/결재 내역), contract(계약서), other(그 외)\n" +
+      "2) receipt/payment_record/contract 중 하나면 is_target_document=true\n" +
+      "3) 필드별로 정제된 value와 word_indices를 반환:\n" +
       "   - merchant: 가게/사업자/상호/계약 당사자명\n" +
-      "   - date: 구매일/결제일/계약일 (한 개의 대표 날짜. 형식은 원문 유지 또는 YYYY-MM-DD)\n" +
-      "   - total: 총 금액/합계/결제금액/계약 금액 (단위 포함, 예: '23,000원'). 공급가액·부가세·소계가 아닌 '최종 결제 금액'을 선택\n" +
-      "4) line_indices는 여러 라인 가능. 값을 포함한 라인들만 고르세요 (값 주변의 라벨 라인은 제외 권장).\n" +
-      "5) 값 없으면 value=null, line_indices=[]\n" +
-      "6) OCR 오탈자는 이미지를 참고해 정정. line_indices는 OCR 라인 인덱스를 그대로 사용.\n\n" +
-      "반드시 아래 JSON만 출력(다른 텍스트 금지):\n" +
+      "   - date: 구매일/결제일/계약일 (가장 대표적인 날짜. 원문 형식 또는 YYYY-MM-DD)\n" +
+      "   - total: 최종 결제 금액 (공급가액/부가세/소계가 아님, 단위 포함 예: '23,000원')\n" +
+      "\n" +
+      "★ word_indices 선택 규칙 (매우 중요):\n" +
+      "   - value를 구성하는 실제 단어들의 인덱스만 포함\n" +
+      "   - 라벨 단어(예: '총액', '결제금액', '거래일시')는 절대 포함하지 말 것\n" +
+      "   - 주변 단어, 구분선, 헤더도 포함하지 말 것\n" +
+      "   - 가능한 한 최소 개수의 단어만 선택 (값이 한 단어면 인덱스 1개)\n" +
+      "   - 예) '23,000원' 한 단어면 word_indices: [53]\n" +
+      "   - 예) '2026-04-20 12:19:59' 두 단어면 word_indices: [15, 16]\n" +
+      "   - 예) 상호명 '어 컵 오브 조' 네 단어면 word_indices: [1,2,3,4]\n" +
+      "\n" +
+      "4) 값이 없으면 value=null, word_indices=[]\n" +
+      "5) OCR 오탈자는 이미지를 참고해 value에서만 정정. word_indices는 OCR 원본 인덱스 그대로 사용.\n" +
+      "6) other인 경우에도 fields 키는 유지, 모든 value=null, word_indices=[]\n\n" +
+      "JSON만 출력(설명/코드펜스 금지):\n" +
       '{\n' +
       '  "document_type": "receipt|payment_record|contract|other",\n' +
       '  "is_target_document": true,\n' +
       '  "fields": {\n' +
-      '    "merchant": {"value": "string|null", "line_indices": [0]},\n' +
-      '    "date":     {"value": "string|null", "line_indices": [0]},\n' +
-      '    "total":    {"value": "string|null", "line_indices": [0]}\n' +
+      '    "merchant": {"value": "string|null", "word_indices": [0]},\n' +
+      '    "date":     {"value": "string|null", "word_indices": [0]},\n' +
+      '    "total":    {"value": "string|null", "word_indices": [0]}\n' +
       '  }\n' +
       '}';
 
@@ -599,7 +632,7 @@
         role: "user",
         content: [
           { type: "image", source: { type: "base64", media_type: mime, data: imageB64 } },
-          { type: "text", text: "OCR 결과:\n" + ocrText + "\n\n위 이미지와 OCR을 참고하여 JSON만 반환하세요." }
+          { type: "text", text: "OCR 결과 (라인별 단어):\n" + ocrBlock + "\n\n위 이미지와 OCR을 참고하여 지시된 JSON만 반환하세요." }
         ]
       }]
     };
@@ -625,7 +658,7 @@
     catch (e) { throw new Error("API 응답 JSON 파싱 실패: " + raw); }
 
     const text = (parsed.content && parsed.content[0] && parsed.content[0].text) || "";
-    showDebug("== OCR lines ==\n" + ocrText + "\n\n== LLM response ==\n" + text);
+    showDebug("== OCR words (라인 그룹) ==\n" + ocrBlock + "\n\n== LLM response ==\n" + text);
 
     const cleaned = stripCodeFence(text).trim();
     let result;
