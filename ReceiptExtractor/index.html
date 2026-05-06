@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>영수증 · 결재내역 · 계약서 데이터 추출</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --line: #e3e5ea;
+    --text: #1a1d22;
+    --muted: #5b6470;
+    --accent: #2d6cdf;
+    --accent-hover: #1f57bf;
+    --danger: #d93636;
+    --warn-bg: #fff7e6;
+    --warn-border: #f1c889;
+    --warn-text: #8a5a00;
+    --color-merchant: #2e7d32;
+    --color-date: #1565c0;
+    --color-total: #c62828;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+                 "Malgun Gothic", "Noto Sans KR", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+  header .sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 2px;
+  }
+
+  .api-key-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .api-key-area input {
+    width: 280px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font: inherit;
+    background: #fafbfc;
+  }
+  .api-key-area input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: #fff;
+  }
+
+  button {
+    font: inherit;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--text);
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  button:hover { background: #f1f3f7; }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  main {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 20px;
+    padding: 24px 28px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    min-width: 0;      /* allow grid cell to shrink, prevents horizontal blowout */
+    overflow: hidden;  /* contain children (e.g., long filenames, large canvas) */
+  }
+  .panel h2 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 12px;
+  }
+
+  .dropzone {
+    display: block;           /* <label> defaults to inline — force block */
+    width: 100%;
+    box-sizing: border-box;
+    border: 2px dashed #c4c9d2;
+    border-radius: var(--radius);
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .dropzone:hover, .dropzone.drag { background: #eef3fb; border-color: var(--accent); color: var(--accent); }
+  .dropzone strong { display: block; color: var(--text); margin-bottom: 4px; font-weight: 500; }
+  .dropzone input[type=file] { display: none; }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 14px;
+  }
+  .toolbar .filename { color: var(--muted); font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .canvas-wrap {
+    margin-top: 16px;
+    background: #f0f1f4;
+    border-radius: var(--radius);
+    padding: 12px;
+    overflow: auto;
+    text-align: center;
+    min-height: 120px;
+  }
+  .canvas-wrap canvas { max-width: 100%; height: auto; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+  .status {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: none;
+  }
+  .status.show { display: block; }
+  .status.info  { background: #e8f0fe; color: #194b9a; }
+  .status.error { background: #fdecec; color: var(--danger); }
+  .status.warn  { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); }
+
+  .doc-type-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #eef2f7;
+    color: var(--muted);
+  }
+  .doc-type-badge.match { background: #e6f4ea; color: #1b5e20; }
+  .doc-type-badge.miss  { background: #fdecec; color: var(--danger); }
+
+  .field-list { margin: 0; padding: 0; list-style: none; }
+  .field-list li {
+    display: grid;
+    grid-template-columns: 92px 1fr;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    align-items: center;
+  }
+  .field-list li:last-child { border-bottom: none; }
+  .field-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .swatch.merchant { background: var(--color-merchant); }
+  .swatch.date     { background: var(--color-date); }
+  .swatch.total    { background: var(--color-total); }
+  .field-value {
+    font-size: 15px;
+    word-break: break-word;
+  }
+  .field-value.empty { color: #aaa; font-style: italic; font-size: 13px; }
+
+  .placeholder {
+    color: var(--muted);
+    text-align: center;
+    padding: 30px 10px;
+    font-size: 13px;
+  }
+
+  details.debug {
+    margin-top: 16px;
+    background: #fafbfc;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  details.debug pre {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px;
+    overflow: auto;
+    max-height: 240px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(0,0,0,0.15);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 880px) {
+    main { grid-template-columns: 1fr; }
+    header { flex-direction: column; align-items: flex-start; }
+    .api-key-area input { width: 100%; }
+    .api-key-area { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>영수증 · 결재내역 · 계약서 데이터 추출</h1>
+    <div class="sub">이미지를 업로드하면 문서 종류를 판별하고 총 금액·구매일·구매처를 추출합니다.</div>
+  </div>
+  <div class="api-key-area">
+    <input id="apiKey" type="password" placeholder="Anthropic API 키 (sk-ant-...)" autocomplete="off" />
+    <button id="saveKeyBtn">저장</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>이미지</h2>
+
+    <label class="dropzone" id="dropzone" for="fileInput">
+      <strong>이미지를 드래그하거나 클릭하여 업로드</strong>
+      JPG, PNG, WEBP, GIF (최대 ~5MB 권장)
+      <input id="fileInput" type="file" accept="image/*" />
+    </label>
+
+    <div class="toolbar">
+      <button id="analyzeBtn" class="primary" disabled>분석하기</button>
+      <button id="clearBtn">초기화</button>
+      <span class="filename" id="fileName"></span>
+    </div>
+
+    <div class="canvas-wrap" id="canvasWrap">
+      <div class="placeholder" id="canvasPlaceholder">업로드한 이미지가 여기에 표시됩니다.</div>
+      <canvas id="canvas" style="display:none"></canvas>
+    </div>
+
+    <div class="status" id="status"></div>
+  </section>
+
+  <section class="panel">
+    <h2>분석 결과</h2>
+    <div id="resultArea">
+      <div class="placeholder">아직 분석된 결과가 없습니다.</div>
+    </div>
+    <details class="debug" id="debugBlock" style="display:none">
+      <summary>원본 응답 보기</summary>
+      <pre id="debugContent"></pre>
+    </details>
+  </section>
+</main>
+
+<script>
+(function () {
+  const STORAGE_KEY = "anthropic_api_key";
+  const MODEL = "claude-sonnet-4-6";
+
+  const FIELD_META = {
+    merchant: { label: "구매처", color: "#2e7d32", className: "merchant" },
+    date:     { label: "구매일", color: "#1565c0", className: "date" },
+    total:    { label: "총 금액", color: "#c62828", className: "total" },
+  };
+
+  const DOC_TYPE_LABEL = {
+    receipt:        "영수증",
+    payment_record: "결재 내역",
+    contract:       "계약서",
+    other:          "기타 (대상 아님)",
+  };
+
+  const els = {
+    apiKey: document.getElementById("apiKey"),
+    saveKeyBtn: document.getElementById("saveKeyBtn"),
+    dropzone: document.getElementById("dropzone"),
+    fileInput: document.getElementById("fileInput"),
+    fileName: document.getElementById("fileName"),
+    analyzeBtn: document.getElementById("analyzeBtn"),
+    clearBtn: document.getElementById("clearBtn"),
+    canvas: document.getElementById("canvas"),
+    canvasPlaceholder: document.getElementById("canvasPlaceholder"),
+    canvasWrap: document.getElementById("canvasWrap"),
+    status: document.getElementById("status"),
+    resultArea: document.getElementById("resultArea"),
+    debugBlock: document.getElementById("debugBlock"),
+    debugContent: document.getElementById("debugContent"),
+  };
+
+  let currentImage = null;       // HTMLImageElement
+  let currentImageBase64 = null; // base64 (without data: prefix)
+  let currentImageMime = null;   // e.g. "image/jpeg"
+  let ocrWorker = null;          // Tesseract worker (lazy)
+
+  // ---------- API key ----------
+  const savedKey = localStorage.getItem(STORAGE_KEY);
+  if (savedKey) els.apiKey.value = savedKey;
+
+  els.saveKeyBtn.addEventListener("click", () => {
+    const key = els.apiKey.value.trim();
+    if (!key) {
+      localStorage.removeItem(STORAGE_KEY);
+      showStatus("API 키를 삭제했습니다.", "warn");
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY, key);
+    showStatus("API 키를 저장했습니다.", "info");
+  });
+
+  // ---------- File handling ----------
+  els.fileInput.addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) loadFile(file);
+  });
+
+  ["dragenter", "dragover"].forEach(ev =>
+    els.dropzone.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      els.dropzone.classList.add("drag");
+    })
+  );
+  ["dragleave", "drop"].forEach(ev =>
+    els.dropzone.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      els.dropzone.classList.remove("drag");
+    })
+  );
+  els.dropzone.addEventListener("drop", (e) => {
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  });
+
+  els.clearBtn.addEventListener("click", resetAll);
+
+  function loadFile(file) {
+    if (!file.type.startsWith("image/")) {
+      showStatus("이미지 파일만 업로드 가능합니다.", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const commaIdx = dataUrl.indexOf(",");
+      currentImageMime = dataUrl.substring(5, dataUrl.indexOf(";"));
+      currentImageBase64 = dataUrl.substring(commaIdx + 1);
+
+      const img = new Image();
+      img.onload = () => {
+        currentImage = img;
+        renderImageOnCanvas(img, null);
+        els.fileName.textContent = file.name + " (" + img.naturalWidth + "×" + img.naturalHeight + ")";
+        els.analyzeBtn.disabled = false;
+        clearStatus();
+        clearResults();
+      };
+      img.onerror = () => showStatus("이미지를 읽을 수 없습니다.", "error");
+      img.src = dataUrl;
+    };
+    reader.onerror = () => showStatus("파일 읽기 실패.", "error");
+    reader.readAsDataURL(file);
+  }
+
+  function renderImageOnCanvas(img, fields) {
+    const canvas = els.canvas;
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.style.display = "inline-block";
+    els.canvasPlaceholder.style.display = "none";
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+
+    if (!fields) return;
+
+    const W = canvas.width, H = canvas.height;
+    const lineWidth = Math.max(2, Math.round(Math.min(W, H) / 400));
+    const fontSize = Math.max(14, Math.round(Math.min(W, H) / 60));
+    ctx.font = "600 " + fontSize + "px -apple-system, sans-serif";
+    ctx.textBaseline = "top";
+
+    Object.keys(FIELD_META).forEach((key) => {
+      const f = fields[key];
+      if (!f || !f.bboxPx || f.value == null) return;
+      const meta = FIELD_META[key];
+
+      // bboxPx is in pixel coords from Tesseract; clamp to canvas
+      let x = Math.max(0, f.bboxPx.x);
+      let y = Math.max(0, f.bboxPx.y);
+      let w = f.bboxPx.w;
+      let h = f.bboxPx.h;
+      if (x + w > W) w = W - x;
+      if (y + h > H) h = H - y;
+      if (w <= 0 || h <= 0) return;
+
+      ctx.lineWidth = lineWidth;
+      ctx.strokeStyle = meta.color;
+      ctx.strokeRect(x, y, w, h);
+
+      const labelText = meta.label + ": " + String(f.value);
+      const padX = 6, padY = 4;
+      const textW = ctx.measureText(labelText).width;
+      const labelW = textW + padX * 2;
+      const labelH = fontSize + padY * 2;
+      let labelY = y - labelH;
+      if (labelY < 0) labelY = y; // overflow → put inside
+      ctx.fillStyle = meta.color;
+      ctx.fillRect(x, labelY, labelW, labelH);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(labelText, x + padX, labelY + padY);
+    });
+  }
+
+  // ---------- OCR (Tesseract.js) ----------
+  async function ensureOcrWorker() {
+    if (ocrWorker) return ocrWorker;
+    if (typeof Tesseract === "undefined") {
+      throw new Error("Tesseract.js 로드 실패 (네트워크 확인 필요).");
+    }
+    showStatus('<span class="spinner"></span>OCR 엔진 로딩 중... (첫 실행 시 한국어 학습파일 ~15MB 다운로드)', "info");
+    ocrWorker = await Tesseract.createWorker(["kor", "eng"], 1, {
+      logger: (m) => {
+        if (m && m.status === "recognizing text" && typeof m.progress === "number") {
+          showStatus('<span class="spinner"></span>OCR 진행 중... ' + Math.round(m.progress * 100) + '%', "info");
+        }
+      }
+    });
+    return ocrWorker;
+  }
+
+  async function runOCR(imgEl) {
+    const worker = await ensureOcrWorker();
+    const { data } = await worker.recognize(imgEl);
+    // Build word list (global index) + group-by-line for prompt readability
+    const words = [];
+    const lineGroups = []; // { lineIdx, wordIndices: [..] }
+
+    (data.lines || []).forEach((line, lineIdx) => {
+      const group = { lineIdx, wordIndices: [] };
+      (line.words || []).forEach((w) => {
+        const t = (w.text || "").trim();
+        if (!t) return;
+        const idx = words.length;
+        words.push({
+          index: idx,
+          text: t,
+          lineIdx: lineIdx,
+          bbox: {
+            x: w.bbox.x0,
+            y: w.bbox.y0,
+            w: w.bbox.x1 - w.bbox.x0,
+            h: w.bbox.y1 - w.bbox.y0,
+          },
+          confidence: w.confidence,
+        });
+        group.wordIndices.push(idx);
+      });
+      if (group.wordIndices.length > 0) lineGroups.push(group);
+    });
+
+    return { words, lineGroups };
+  }
+
+  // Render OCR words grouped by line for a compact, readable prompt block
+  function formatOcrForPrompt(words, lineGroups) {
+    return lineGroups
+      .map((g) => "L" + g.lineIdx + ": " + g.wordIndices.map((i) => "[" + i + "]" + words[i].text).join(" "))
+      .join("\n");
+  }
+
+  // ---------- Analyze ----------
+  els.analyzeBtn.addEventListener("click", analyze);
+
+  async function analyze() {
+    const apiKey = els.apiKey.value.trim();
+    if (!apiKey) {
+      showStatus("Anthropic API 키를 먼저 입력해주세요.", "error");
+      return;
+    }
+    if (!currentImageBase64) {
+      showStatus("이미지를 먼저 업로드해주세요.", "error");
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      // Step 1: OCR with Tesseract — word-level pixel bboxes
+      const { words, lineGroups } = await runOCR(currentImage);
+      if (words.length === 0) {
+        throw new Error("OCR 결과가 없습니다. 이미지 화질/대비를 확인해주세요.");
+      }
+
+      // Step 2: Claude picks which word indices belong to each field
+      showStatus('<span class="spinner"></span>Claude로 필드 판별 중...', "info");
+      const llmResult = await callClaudeWithWords(apiKey, currentImageBase64, currentImageMime, words, lineGroups);
+
+      // Step 3: Convert word_indices → pixel bbox (union of selected words)
+      const fieldsPx = {};
+      Object.keys(FIELD_META).forEach((key) => {
+        const f = (llmResult.fields && llmResult.fields[key]) || {};
+        const idxs = Array.isArray(f.word_indices) ? f.word_indices : [];
+        const selected = idxs.map((i) => words[i]).filter(Boolean);
+        if (selected.length > 0 && f.value) {
+          const x  = Math.min(...selected.map((w) => w.bbox.x));
+          const y  = Math.min(...selected.map((w) => w.bbox.y));
+          const x2 = Math.max(...selected.map((w) => w.bbox.x + w.bbox.w));
+          const y2 = Math.max(...selected.map((w) => w.bbox.y + w.bbox.h));
+          // Small padding for visibility
+          const pad = Math.max(2, Math.round(Math.min(currentImage.naturalWidth, currentImage.naturalHeight) / 400));
+          fieldsPx[key] = {
+            value: f.value,
+            bboxPx: { x: x - pad, y: y - pad, w: (x2 - x) + pad * 2, h: (y2 - y) + pad * 2 },
+            word_indices: idxs,
+          };
+        } else {
+          fieldsPx[key] = { value: f.value || null, bboxPx: null, word_indices: idxs };
+        }
+      });
+
+      renderResult({
+        document_type: llmResult.document_type,
+        is_target_document: llmResult.is_target_document,
+        fields: fieldsPx,
+      });
+      clearStatus();
+    } catch (err) {
+      console.error(err);
+      showStatus("오류: " + (err && err.message ? err.message : String(err)), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function setBusy(on) {
+    els.analyzeBtn.disabled = on || !currentImageBase64;
+    els.clearBtn.disabled = on;
+  }
+
+  async function callClaudeWithWords(apiKey, imageB64, mime, words, lineGroups) {
+    const ocrBlock = formatOcrForPrompt(words, lineGroups);
+
+    const systemPrompt =
+      "당신은 한국어/영어 문서 분석가입니다. 이미지와 함께 OCR 결과가 주어집니다.\n" +
+      "OCR은 라인별로 그룹화된 단어들의 배열이며, 각 단어는 [고유인덱스]텍스트 형식입니다.\n\n" +
+      "수행할 작업:\n" +
+      "1) 문서 종류: receipt(영수증), payment_record(결제/결재 내역), contract(계약서), other(그 외)\n" +
+      "2) receipt/payment_record/contract 중 하나면 is_target_document=true\n" +
+      "3) 필드별로 정제된 value와 word_indices를 반환:\n" +
+      "   - merchant: 가게/사업자/상호/계약 당사자명 (점포코드/번호/괄호 제외)\n" +
+      "   - date: 구매일/결제일/계약일. 날짜만 (시간·요일·'판매'같은 라벨 제외). 형식은 원문 또는 YYYY-MM-DD\n" +
+      "   - total: 최종 결제 금액만. 공급가액·부가세·소계 아님. 금액 숫자+통화만 (예: '₩2,600', '23,000원')\n" +
+      "\n" +
+      "★★ word_indices 엄격 규칙 (반드시 준수):\n" +
+      "   (A) value 문자열을 구성하는 '핵심 단어'의 인덱스만 포함한다.\n" +
+      "   (B) value에 포함되지 않은 텍스트의 단어는 절대 포함하지 않는다.\n" +
+      "   (C) 특히 다음은 word_indices에서 반드시 제외:\n" +
+      "       · 라벨 단어: '총액','합계','결제금액','금액','거래일시','구매일','[판매]','[매출]','일시불' 등\n" +
+      "       · 시간: '11:01:11', '12:19:59' 같은 HH:MM:SS (date 필드가 날짜만일 때)\n" +
+      "       · 요일/괄호: '(수)', '(금)', '(-)' 등\n" +
+      "       · 점포코드/사업자번호: '#53184', '894-29-01521', '8510401195' (merchant value에 포함되지 않는 한)\n" +
+      "       · 통화 기호가 별도 단어면 금액 숫자 단어만 선택 (단, 한 단어로 붙어있으면 그 단어 사용)\n" +
+      "   (D) 선택한 단어들의 텍스트를 공백으로 이어붙였을 때 value와 사실상 동일해야 한다.\n" +
+      "   (E) 최소 단어 개수를 사용한다. 한 단어로 표현 가능하면 1개만 선택.\n" +
+      "\n" +
+      "예시:\n" +
+      "   · OCR: L3: [12]합계 [13]₩2,600        → total.value='₩2,600', word_indices=[13]  (합계 제외)\n" +
+      "   · OCR: L4: [20][판매] [21]2026-03-18 [22](수) [23]11:01:11  → date.value='2026-03-18', word_indices=[21]\n" +
+      "   · OCR: L0: [0]세븐일레븐 [1]유성디티비안S점#53184  → merchant.value='세븐일레븐 유성디티비안S점', word_indices=[0]  (단, OCR이 한 단어로 '유성디티비안S점#53184'를 합쳤다면 어쩔 수 없이 [0,1] 사용; 가능한 한 코드 제외)\n" +
+      "   · OCR: L5: [30]결제금액 [31]23,000원  → total.value='23,000원', word_indices=[31]\n" +
+      "\n" +
+      "4) 값이 없으면 value=null, word_indices=[]\n" +
+      "5) OCR 오탈자는 이미지를 참고해 value에서만 정정. word_indices는 OCR 원본 인덱스 그대로 사용.\n" +
+      "6) other인 경우에도 fields 키는 유지, 모든 value=null, word_indices=[]\n\n" +
+      "JSON만 출력(설명/코드펜스 금지):\n" +
+      '{\n' +
+      '  "document_type": "receipt|payment_record|contract|other",\n' +
+      '  "is_target_document": true,\n' +
+      '  "fields": {\n' +
+      '    "merchant": {"value": "string|null", "word_indices": [0]},\n' +
+      '    "date":     {"value": "string|null", "word_indices": [0]},\n' +
+      '    "total":    {"value": "string|null", "word_indices": [0]}\n' +
+      '  }\n' +
+      '}';
+
+    const body = {
+      model: MODEL,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mime, data: imageB64 } },
+          { type: "text", text: "OCR 결과 (라인별 단어):\n" + ocrBlock + "\n\n위 이미지와 OCR을 참고하여 지시된 JSON만 반환하세요." }
+        ]
+      }]
+    };
+
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const raw = await resp.text();
+    if (!resp.ok) {
+      throw new Error("API 호출 실패 (" + resp.status + "): " + raw);
+    }
+
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch (e) { throw new Error("API 응답 JSON 파싱 실패: " + raw); }
+
+    const text = (parsed.content && parsed.content[0] && parsed.content[0].text) || "";
+    showDebug("== OCR words (라인 그룹) ==\n" + ocrBlock + "\n\n== LLM response ==\n" + text);
+
+    const cleaned = stripCodeFence(text).trim();
+    let result;
+    try { result = JSON.parse(cleaned); }
+    catch (e) {
+      throw new Error("모델 응답이 JSON 형식이 아닙니다. 디버그 패널을 확인하세요.");
+    }
+    return result;
+  }
+
+  function stripCodeFence(s) {
+    let t = s.trim();
+    if (t.startsWith("```")) {
+      t = t.replace(/^```(json)?\s*/i, "");
+      if (t.endsWith("```")) t = t.substring(0, t.length - 3);
+    }
+    return t.trim();
+  }
+
+  // ---------- Render result ----------
+  function renderResult(result) {
+    const docType = result.document_type || "other";
+    const isTarget = !!result.is_target_document && docType !== "other";
+    const fields = result.fields || {};
+
+    let html = "";
+    html += '<div style="margin-bottom:14px">';
+    html += '문서 종류: <span class="doc-type-badge ' + (isTarget ? "match" : "miss") + '">'
+         + (DOC_TYPE_LABEL[docType] || docType) + '</span>';
+    html += '</div>';
+
+    if (!isTarget) {
+      html += '<div class="status warn show" style="margin-top:0">'
+           + '영수증 · 결재 내역 · 계약서가 아닌 것으로 판단되어 데이터를 추출하지 않습니다.'
+           + '</div>';
+      els.resultArea.innerHTML = html;
+      renderImageOnCanvas(currentImage, null);
+      return;
+    }
+
+    html += '<ul class="field-list">';
+    Object.keys(FIELD_META).forEach((key) => {
+      const meta = FIELD_META[key];
+      const f = fields[key] || {};
+      const val = f.value;
+      html += '<li>'
+           +   '<span class="field-label"><span class="swatch ' + meta.className + '"></span>' + meta.label + '</span>'
+           +   (val != null && String(val).trim() !== ""
+                 ? '<span class="field-value">' + escapeHtml(String(val)) + '</span>'
+                 : '<span class="field-value empty">(찾지 못함)</span>')
+           + '</li>';
+    });
+    html += '</ul>';
+
+    els.resultArea.innerHTML = html;
+    renderImageOnCanvas(currentImage, fields);
+  }
+
+  function clearResults() {
+    els.resultArea.innerHTML = '<div class="placeholder">아직 분석된 결과가 없습니다.</div>';
+    els.debugBlock.style.display = "none";
+    els.debugContent.textContent = "";
+  }
+
+  function resetAll() {
+    currentImage = null;
+    currentImageBase64 = null;
+    currentImageMime = null;
+    els.fileInput.value = "";
+    els.fileName.textContent = "";
+    els.analyzeBtn.disabled = true;
+    els.canvas.style.display = "none";
+    els.canvasPlaceholder.style.display = "block";
+    clearStatus();
+    clearResults();
+    // OCR worker는 재사용을 위해 유지 (다시 로드 비용 방지)
+  }
+
+  // ---------- Helpers ----------
+  function showStatus(msg, kind) {
+    els.status.className = "status show " + (kind || "info");
+    els.status.innerHTML = msg;
+  }
+  function clearStatus() {
+    els.status.className = "status";
+    els.status.innerHTML = "";
+  }
+  function showDebug(text) {
+    els.debugContent.textContent = text;
+    els.debugBlock.style.display = "block";
+  }
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    })[c]);
+  }
+})();
+</script>
+
+</body>
+</html>
