@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="테니스 스피드" />
+<meta name="theme-color" content="#000000" />
+<title>테니스 공 스피드 측정</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden; background: #000; color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+    -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app { position: fixed; inset: 0; }
+  #video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; background: #000;
+  }
+  #overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  /* HUD */
+  #hud {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: 12px; right: 12px;
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none;
+  }
+  .speed-card {
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    padding: 14px 18px; border-radius: 14px; align-self: flex-start;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .speed-now {
+    font-size: 64px; font-weight: 800; line-height: 1; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .speed-now .unit { font-size: 22px; font-weight: 500; margin-left: 8px; opacity: 0.7; }
+  .speed-max { font-size: 14px; opacity: 0.75; margin-top: 6px; }
+  .pill {
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    padding: 8px 12px; border-radius: 10px; font-size: 13px;
+    align-self: flex-start; border: 1px solid rgba(255,255,255,0.08);
+  }
+  .pill.warn { color: #ffd060; }
+
+  /* Controls */
+  #controls {
+    position: absolute;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    left: 12px; right: 12px;
+    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+  }
+  button {
+    background: rgba(255,255,255,0.14); color: #fff;
+    border: 1px solid rgba(255,255,255,0.22);
+    padding: 12px 18px; border-radius: 12px; font-size: 15px; font-weight: 600;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.05s ease, background 0.1s ease;
+  }
+  button:active { background: rgba(255,255,255,0.28); transform: scale(0.97); }
+  button:disabled { opacity: 0.35; }
+  button.primary { background: #34c759; border-color: rgba(255,255,255,0.3); }
+  button.primary:active { background: #2cad4d; }
+  button.danger { background: rgba(255,69,58,0.7); }
+
+  /* Modal panels */
+  .panel {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.72);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    padding: max(env(safe-area-inset-top, 16px), 20px) 20px 20px;
+    display: flex; flex-direction: column; gap: 14px;
+    overflow-y: auto;
+  }
+  .panel.hidden { display: none; }
+  .panel h2 { font-size: 18px; margin-bottom: 4px; }
+  .panel p { font-size: 14px; opacity: 0.85; line-height: 1.5; }
+  .panel .actions { display: flex; gap: 8px; margin-top: auto; padding-top: 12px; }
+  .panel .actions button { flex: 1; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .field-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; opacity: 0.9; }
+  input[type="range"] { width: 100%; accent-color: #34c759; }
+  input[type="number"] {
+    padding: 12px 14px; font-size: 16px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08); color: #fff;
+  }
+
+  /* Calibration overlay tap hint */
+  .calib-hint {
+    position: absolute; left: 0; right: 0; top: 30%;
+    text-align: center; pointer-events: none;
+    font-size: 18px; font-weight: 600; padding: 0 20px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  }
+  .calib-hint .small { display: block; font-size: 14px; font-weight: 400; margin-top: 6px; opacity: 0.85; }
+
+  .start-overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; background: rgba(0,0,0,0.92); text-align: center; padding: 20px;
+  }
+  .start-overlay h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+  .start-overlay p { font-size: 14px; opacity: 0.8; max-width: 320px; line-height: 1.5; }
+  .start-overlay button { padding: 16px 28px; font-size: 17px; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="overlay"></canvas>
+
+  <div id="hud">
+    <div class="speed-card">
+      <div class="speed-now"><span id="speedNow">0</span><span class="unit">km/h</span></div>
+      <div class="speed-max">최고 <span id="speedMax">0</span> km/h · 평균 <span id="speedAvg">0</span> km/h</div>
+    </div>
+    <div class="pill" id="status">시작 버튼을 누르세요</div>
+    <div class="pill" id="diag">FPS — · 보정 미완료</div>
+  </div>
+
+  <div id="controls">
+    <button id="startBtn" class="primary">시작</button>
+    <button id="calibBtn" disabled>보정</button>
+    <button id="resetBtn">리셋</button>
+    <button id="settingsBtn">설정</button>
+  </div>
+
+  <!-- Start splash (shown until user taps; needed because iOS requires user gesture for camera) -->
+  <div id="startSplash" class="start-overlay">
+    <h1>테니스 공 스피드</h1>
+    <p>아이폰 카메라로 노란 테니스 공을 추적해 속도를 측정합니다. 시작 전에 카메라 권한을 허용해 주세요.</p>
+    <p style="opacity: 0.6; font-size: 12px;">
+      ※ HTTPS 환경에서만 카메라가 동작합니다. GitHub Pages, Vercel 등은 자동으로 HTTPS 입니다.
+    </p>
+    <button id="splashStart" class="primary">카메라 시작</button>
+  </div>
+
+  <!-- Calibration tap hint (visible during calibration) -->
+  <div id="calibHint" class="calib-hint hidden">
+    <span id="calibHintText">알고 있는 거리의 양 끝을 화면에서 탭하세요 (0/2)</span>
+    <span class="small">예: 베이스라인 간격(23.77m), 코트 폭(8.23m), 베이스라인 폭(10.97m)</span>
+  </div>
+
+  <!-- Calibration confirm panel -->
+  <div id="calibPanel" class="panel hidden">
+    <h2>거리 입력</h2>
+    <p>두 점 사이의 실제 거리를 입력하세요.</p>
+    <div class="field">
+      <input type="number" id="calibDist" placeholder="실제 거리 (cm)" inputmode="decimal" step="0.1" min="0" />
+      <div class="field-row">
+        <span>단위</span>
+        <span><label><input type="radio" name="unit" value="cm" checked> cm</label> &nbsp; <label><input type="radio" name="unit" value="m"> m</label></span>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="calibCancel">취소</button>
+      <button id="calibConfirm" class="primary" disabled>확인</button>
+    </div>
+  </div>
+
+  <!-- Settings panel -->
+  <div id="settingsPanel" class="panel hidden">
+    <h2>색상 임계값 (HSV)</h2>
+    <p>테니스 공의 노란-녹색 색상 범위를 조정합니다. 조명 환경에 맞춰 조절하세요.</p>
+
+    <div class="field">
+      <div class="field-row"><span>색상 Hue 최소</span><span id="hMinV">35</span></div>
+      <input type="range" id="hMin" min="0" max="360" value="35" />
+    </div>
+    <div class="field">
+      <div class="field-row"><span>색상 Hue 최대</span><span id="hMaxV">85</span></div>
+      <input type="range" id="hMax" min="0" max="360" value="85" />
+    </div>
+    <div class="field">
+      <div class="field-row"><span>채도 Saturation 최소 (%)</span><span id="sMinV">30</span></div>
+      <input type="range" id="sMin" min="0" max="100" value="30" />
+    </div>
+    <div class="field">
+      <div class="field-row"><span>명도 Value 최소 (%)</span><span id="vMinV">35</span></div>
+      <input type="range" id="vMin" min="0" max="100" value="35" />
+    </div>
+    <div class="field">
+      <div class="field-row"><span>최소 검출 픽셀 수</span><span id="minPixV">20</span></div>
+      <input type="range" id="minPix" min="3" max="500" value="20" />
+    </div>
+    <div class="field">
+      <div class="field-row"><span>최대 검출 픽셀 수</span><span id="maxPixV">3000</span></div>
+      <input type="range" id="maxPix" min="100" max="20000" step="100" value="3000" />
+    </div>
+    <div class="field">
+      <div class="field-row"><span>속도 노이즈 필터 (km/h 이하 무시)</span><span id="speedFloorV">5</span></div>
+      <input type="range" id="speedFloor" min="0" max="30" value="5" />
+    </div>
+
+    <div class="actions">
+      <button id="resetSettings">기본값</button>
+      <button id="closeSettings" class="primary">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ===== Elements =====
+  const $ = (id) => document.getElementById(id);
+  const video      = $('video');
+  const overlay    = $('overlay');
+  const ctx        = overlay.getContext('2d');
+  const speedNowEl = $('speedNow');
+  const speedMaxEl = $('speedMax');
+  const speedAvgEl = $('speedAvg');
+  const statusEl   = $('status');
+  const diagEl     = $('diag');
+
+  const startBtn    = $('startBtn');
+  const calibBtn    = $('calibBtn');
+  const resetBtn    = $('resetBtn');
+  const settingsBtn = $('settingsBtn');
+
+  const startSplash  = $('startSplash');
+  const splashStart  = $('splashStart');
+
+  const calibHint     = $('calibHint');
+  const calibHintText = $('calibHintText');
+  const calibPanel    = $('calibPanel');
+  const calibDist     = $('calibDist');
+  const calibConfirm  = $('calibConfirm');
+  const calibCancel   = $('calibCancel');
+
+  const settingsPanel = $('settingsPanel');
+  const closeSettings = $('closeSettings');
+  const resetSettings = $('resetSettings');
+
+  const sliders = {
+    hMin:       { el: $('hMin'),       val: $('hMinV'),       def: 35  },
+    hMax:       { el: $('hMax'),       val: $('hMaxV'),       def: 85  },
+    sMin:       { el: $('sMin'),       val: $('sMinV'),       def: 30  },
+    vMin:       { el: $('vMin'),       val: $('vMinV'),       def: 35  },
+    minPix:     { el: $('minPix'),     val: $('minPixV'),     def: 20  },
+    maxPix:     { el: $('maxPix'),     val: $('maxPixV'),     def: 3000 },
+    speedFloor: { el: $('speedFloor'), val: $('speedFloorV'), def: 5   },
+  };
+
+  // ===== Off-screen processing canvas (downscaled for speed) =====
+  const proc = document.createElement('canvas');
+  const procCtx = proc.getContext('2d', { willReadFrequently: true });
+  const PROC_W = 320;
+  let procH = 240;
+
+  // ===== State =====
+  let stream = null;
+  let running = false;
+  let metersPerPixel = null;
+  let calibPoints = [];
+  let calibrating = false;
+  let lastDetection = null;       // { x, y, t } display coords
+  let recentSpeeds = [];          // { speed, t } last 1 second
+  let allSpeeds = [];             // for avg this session
+  let maxSpeed = 0;
+  let frameCount = 0;
+  let lastFpsT = performance.now();
+  let curFps = 0;
+  let trail = [];                 // recent positions for drawing trail
+
+  // ===== Helpers =====
+  function setStatus(msg) { statusEl.textContent = msg; }
+  function updateDiag() {
+    const calibTxt = metersPerPixel
+      ? `${(metersPerPixel * 1000).toFixed(2)} mm/px`
+      : '보정 미완료';
+    diagEl.textContent = `FPS ${curFps || '—'} · ${calibTxt}`;
+    diagEl.classList.toggle('warn', !metersPerPixel);
+  }
+
+  function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const d = max - min;
+    let h = 0;
+    if (d > 0) {
+      if (max === r)      h = ((g - b) / d) % 6;
+      else if (max === g) h = (b - r) / d + 2;
+      else                h = (r - g) / d + 4;
+      h *= 60;
+      if (h < 0) h += 360;
+    }
+    const s = max === 0 ? 0 : d / max;
+    return [h, s, max];
+  }
+
+  // Map proc-canvas coords → overlay coords accounting for `object-fit: cover`
+  function getDisplayedVideoRect() {
+    const cw = overlay.width, ch = overlay.height;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) return { x: 0, y: 0, w: cw, h: ch };
+    const videoAr = vw / vh, canvasAr = cw / ch;
+    let w, h, x, y;
+    if (videoAr > canvasAr) {
+      h = ch; w = ch * videoAr;
+      x = (cw - w) / 2; y = 0;
+    } else {
+      w = cw; h = cw / videoAr;
+      x = 0; y = (ch - h) / 2;
+    }
+    return { x, y, w, h };
+  }
+
+  // ===== Camera =====
+  async function start() {
+    try {
+      setStatus('카메라 접근 요청 중...');
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width:  { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 60, min: 30 }
+        },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+      resizeCanvases();
+      running = true;
+      startBtn.textContent = '정지';
+      startBtn.classList.remove('primary');
+      startBtn.classList.add('danger');
+      calibBtn.disabled = false;
+      setStatus(metersPerPixel ? '측정 중' : '먼저 [보정] 버튼으로 거리 보정을 진행하세요');
+      requestAnimationFrame(loop);
+    } catch (e) {
+      console.error(e);
+      setStatus('카메라 실패: ' + (e.message || e.name || e));
+    }
+  }
+
+  function stop() {
+    running = false;
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    video.srcObject = null;
+    startBtn.textContent = '시작';
+    startBtn.classList.add('primary');
+    startBtn.classList.remove('danger');
+    setStatus('정지됨');
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+  }
+
+  function resizeCanvases() {
+    const cssW = window.innerWidth;
+    const cssH = window.innerHeight;
+    overlay.width  = cssW;
+    overlay.height = cssH;
+    const vw = video.videoWidth || 1280, vh = video.videoHeight || 720;
+    procH = Math.max(60, Math.round(PROC_W * vh / vw));
+    proc.width  = PROC_W;
+    proc.height = procH;
+  }
+
+  // ===== Ball detection =====
+  function detectBall() {
+    if (!video.videoWidth) return null;
+    procCtx.drawImage(video, 0, 0, PROC_W, procH);
+    const img = procCtx.getImageData(0, 0, PROC_W, procH);
+    const data = img.data;
+
+    const hMin = +sliders.hMin.el.value;
+    const hMax = +sliders.hMax.el.value;
+    const sMin = +sliders.sMin.el.value / 100;
+    const vMin = +sliders.vMin.el.value / 100;
+    const minPix = +sliders.minPix.el.value;
+    const maxPix = +sliders.maxPix.el.value;
+    const hueWraps = hMin > hMax;
+
+    let sumX = 0, sumY = 0, count = 0;
+    let minX = PROC_W, maxXp = 0, minY = procH, maxYp = 0;
+
+    const W = PROC_W, H = procH;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        // Inline HSV check (fast path)
+        const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+        const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+        const dRGB = mx - mn;
+        const v = mx / 255;
+        if (v < vMin) continue;
+        const s = mx === 0 ? 0 : dRGB / mx;
+        if (s < sMin) continue;
+        let h = 0;
+        if (dRGB > 0) {
+          if (mx === r)      h = 60 * (((g - b) / dRGB) % 6);
+          else if (mx === g) h = 60 * (((b - r) / dRGB) + 2);
+          else               h = 60 * (((r - g) / dRGB) + 4);
+          if (h < 0) h += 360;
+        }
+        const inHue = hueWraps ? (h >= hMin || h <= hMax) : (h >= hMin && h <= hMax);
+        if (!inHue) continue;
+
+        sumX += x; sumY += y; count++;
+        if (x < minX) minX = x;
+        if (x > maxXp) maxXp = x;
+        if (y < minY) minY = y;
+        if (y > maxYp) maxYp = y;
+      }
+    }
+    if (count < minPix || count > maxPix) return null;
+
+    const cxP = sumX / count;
+    const cyP = sumY / count;
+    const rP = Math.max(maxXp - minX, maxYp - minY) / 2;
+
+    const rect = getDisplayedVideoRect();
+    const sx = rect.w / PROC_W;
+    const sy = rect.h / procH;
+    return {
+      x: rect.x + cxP * sx,
+      y: rect.y + cyP * sy,
+      r: Math.max(rP * sx, rP * sy),
+      count
+    };
+  }
+
+  // ===== Speed =====
+  function updateSpeed(det, t) {
+    if (!metersPerPixel) {
+      lastDetection = { x: det.x, y: det.y, t };
+      return;
+    }
+    if (lastDetection) {
+      const dt = (t - lastDetection.t) / 1000;
+      if (dt > 0 && dt < 0.4) {
+        const dx = (det.x - lastDetection.x) * metersPerPixel;
+        const dy = (det.y - lastDetection.y) * metersPerPixel;
+        const dist = Math.hypot(dx, dy);
+        const speed = (dist / dt) * 3.6; // km/h
+        const floor = +sliders.speedFloor.el.value;
+        if (speed >= floor && speed < 500) {
+          recentSpeeds.push({ speed, t });
+          allSpeeds.push(speed);
+          const cutoff = t - 1000;
+          while (recentSpeeds.length && recentSpeeds[0].t < cutoff) recentSpeeds.shift();
+          // Display peak in last 1s for stability
+          let peak = 0;
+          for (const r of recentSpeeds) if (r.speed > peak) peak = r.speed;
+          speedNowEl.textContent = peak.toFixed(0);
+          if (peak > maxSpeed) {
+            maxSpeed = peak;
+            speedMaxEl.textContent = maxSpeed.toFixed(0);
+          }
+          if (allSpeeds.length) {
+            const avg = allSpeeds.reduce((a, b) => a + b, 0) / allSpeeds.length;
+            speedAvgEl.textContent = avg.toFixed(0);
+          }
+        }
+      }
+    }
+    lastDetection = { x: det.x, y: det.y, t };
+  }
+
+  // ===== Draw =====
+  function draw(det, t) {
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+    // Calibration markers
+    if (calibPoints.length) {
+      ctx.strokeStyle = '#00e0ff';
+      ctx.fillStyle   = 'rgba(0,224,255,0.25)';
+      ctx.lineWidth = 2;
+      for (const p of calibPoints) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      }
+      if (calibPoints.length === 2) {
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(calibPoints[0].x, calibPoints[0].y);
+        ctx.lineTo(calibPoints[1].x, calibPoints[1].y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // Trail
+    if (trail.length > 1) {
+      for (let i = 1; i < trail.length; i++) {
+        const a = trail[i - 1], b = trail[i];
+        const age = (t - b.t) / 500;
+        const alpha = Math.max(0, 1 - age);
+        if (alpha <= 0) continue;
+        ctx.strokeStyle = `rgba(52, 199, 89, ${alpha})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+    }
+
+    // Detection circle
+    if (det) {
+      ctx.strokeStyle = '#34c759';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(det.x, det.y, Math.max(det.r, 14), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  // ===== Main loop =====
+  function loop() {
+    if (!running) return;
+    const t = performance.now();
+    const det = detectBall();
+    if (det) {
+      updateSpeed(det, t);
+      trail.push({ x: det.x, y: det.y, t });
+    } else {
+      // Reset reference if we lost the ball for too long
+      if (lastDetection && t - lastDetection.t > 250) lastDetection = null;
+    }
+    // Trim trail to ~500ms
+    while (trail.length && t - trail[0].t > 500) trail.shift();
+
+    draw(det, t);
+
+    frameCount++;
+    if (t - lastFpsT >= 500) {
+      curFps = Math.round(frameCount * 1000 / (t - lastFpsT));
+      frameCount = 0;
+      lastFpsT = t;
+      updateDiag();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ===== Calibration =====
+  function beginCalibration() {
+    if (!running) { setStatus('먼저 카메라를 시작하세요'); return; }
+    calibrating = true;
+    calibPoints = [];
+    calibDist.value = '';
+    calibConfirm.disabled = true;
+    calibHintText.textContent = '알고 있는 거리의 양 끝을 화면에서 탭하세요 (0/2)';
+    calibHint.classList.remove('hidden');
+    calibPanel.classList.add('hidden');
+    setStatus('보정 중: 두 점을 탭하세요');
+  }
+
+  function endCalibration(commit) {
+    if (commit && calibPoints.length === 2) {
+      const unit = document.querySelector('input[name="unit"]:checked').value;
+      const raw = parseFloat(calibDist.value);
+      const realMeters = unit === 'm' ? raw : raw / 100;
+      if (realMeters > 0) {
+        const dx = calibPoints[1].x - calibPoints[0].x;
+        const dy = calibPoints[1].y - calibPoints[0].y;
+        const pxDist = Math.hypot(dx, dy);
+        if (pxDist > 1) {
+          metersPerPixel = realMeters / pxDist;
+          localStorage.setItem('ts_mpp', String(metersPerPixel));
+          // Reset stale speeds collected with previous calibration
+          recentSpeeds = [];
+          allSpeeds = [];
+          maxSpeed = 0;
+          speedNowEl.textContent = '0';
+          speedMaxEl.textContent = '0';
+          speedAvgEl.textContent = '0';
+          setStatus(`보정 완료 · ${(metersPerPixel * 1000).toFixed(2)} mm/px`);
+        }
+      }
+    } else if (!commit) {
+      setStatus(metersPerPixel ? '측정 중' : '보정 취소됨');
+    }
+    calibrating = false;
+    calibPoints = [];
+    calibHint.classList.add('hidden');
+    calibPanel.classList.add('hidden');
+    updateDiag();
+  }
+
+  overlay.addEventListener('click', (e) => {
+    if (!calibrating) return;
+    if (calibPoints.length >= 2) return;
+    const rect = overlay.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * overlay.width  / rect.width;
+    const y = (e.clientY - rect.top)  * overlay.height / rect.height;
+    calibPoints.push({ x, y });
+    calibHintText.textContent = `알고 있는 거리의 양 끝을 화면에서 탭하세요 (${calibPoints.length}/2)`;
+    if (calibPoints.length === 2) {
+      calibHint.classList.add('hidden');
+      calibPanel.classList.remove('hidden');
+      setTimeout(() => calibDist.focus(), 50);
+    }
+  });
+
+  calibDist.addEventListener('input', () => {
+    calibConfirm.disabled = !(calibPoints.length === 2 && parseFloat(calibDist.value) > 0);
+  });
+  calibConfirm.addEventListener('click', () => endCalibration(true));
+  calibCancel.addEventListener('click',  () => endCalibration(false));
+
+  // ===== Buttons =====
+  startBtn.addEventListener('click', () => running ? stop() : start());
+  calibBtn.addEventListener('click', beginCalibration);
+  resetBtn.addEventListener('click', () => {
+    maxSpeed = 0;
+    speedMaxEl.textContent = '0';
+    speedNowEl.textContent = '0';
+    speedAvgEl.textContent = '0';
+    recentSpeeds = [];
+    allSpeeds = [];
+    trail = [];
+  });
+  settingsBtn.addEventListener('click', () => settingsPanel.classList.remove('hidden'));
+  closeSettings.addEventListener('click', () => settingsPanel.classList.add('hidden'));
+
+  // ===== Sliders: live label + persistence =====
+  for (const [key, s] of Object.entries(sliders)) {
+    const saved = localStorage.getItem('ts_' + key);
+    if (saved !== null) s.el.value = saved;
+    s.val.textContent = s.el.value;
+    s.el.addEventListener('input', () => {
+      s.val.textContent = s.el.value;
+      localStorage.setItem('ts_' + key, s.el.value);
+    });
+  }
+  resetSettings.addEventListener('click', () => {
+    for (const [key, s] of Object.entries(sliders)) {
+      s.el.value = s.def;
+      s.val.textContent = s.def;
+      localStorage.setItem('ts_' + key, String(s.def));
+    }
+  });
+
+  // ===== Load saved calibration =====
+  const savedMpp = parseFloat(localStorage.getItem('ts_mpp'));
+  if (savedMpp > 0) metersPerPixel = savedMpp;
+  updateDiag();
+
+  // ===== Splash → start =====
+  splashStart.addEventListener('click', async () => {
+    startSplash.classList.add('hidden');
+    await start();
+  });
+
+  window.addEventListener('resize', resizeCanvases);
+  window.addEventListener('orientationchange', () => setTimeout(resizeCanvases, 200));
+
+  // Pre-size canvases so calibration drawing works even before video plays
+  overlay.width = window.innerWidth;
+  overlay.height = window.innerHeight;
+})();
+</script>
+</body>
+</html>
