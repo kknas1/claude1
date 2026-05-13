@@ -173,7 +173,18 @@
 
   <!-- Settings panel -->
   <div id="settingsPanel" class="panel hidden">
-    <h2>색상 임계값 (HSV)</h2>
+    <h2>검출 설정</h2>
+    <p>야외/실내, 정지한 노란 물체(카트의 공 더미 등)에 따라 조정하세요.</p>
+
+    <div class="field">
+      <div class="field-row"><span>움직임 감지 (0=비활성)</span><span id="motionV">40</span></div>
+      <input type="range" id="motion" min="0" max="200" value="40" />
+      <p style="font-size:12px;opacity:0.7;margin-top:2px;">
+        직전 프레임 대비 변한 픽셀만 검출 대상. 정지한 카트·공 더미를 제외합니다. 너무 높이면 느린 공이 안 잡힙니다.
+      </p>
+    </div>
+
+    <h2 style="margin-top:8px;">색상 임계값 (HSV)</h2>
     <p>테니스 공의 노란-녹색 색상 범위를 조정합니다. 조명 환경에 맞춰 조절하세요.</p>
 
     <div class="field">
@@ -247,6 +258,7 @@
   const resetSettings = $('resetSettings');
 
   const sliders = {
+    motion:     { el: $('motion'),     val: $('motionV'),     def: 40  },
     hMin:       { el: $('hMin'),       val: $('hMinV'),       def: 35  },
     hMax:       { el: $('hMax'),       val: $('hMaxV'),       def: 85  },
     sMin:       { el: $('sMin'),       val: $('sMinV'),       def: 30  },
@@ -276,6 +288,7 @@
   let lastFpsT = performance.now();
   let curFps = 0;
   let trail = [];                 // recent positions for drawing trail
+  let prevPixels = null;          // last proc-frame pixel buffer (for motion gating)
 
   // ===== Helpers =====
   function setStatus(msg) { statusEl.textContent = msg; }
@@ -358,6 +371,9 @@
     startBtn.classList.remove('danger');
     setStatus('정지됨');
     ctx.clearRect(0, 0, overlay.width, overlay.height);
+    prevPixels = null;
+    lastDetection = null;
+    trail = [];
   }
 
   function resizeCanvases() {
@@ -384,7 +400,9 @@
     const vMin = +sliders.vMin.el.value / 100;
     const minPix = +sliders.minPix.el.value;
     const maxPix = +sliders.maxPix.el.value;
+    const motionTh = +sliders.motion.el.value;
     const hueWraps = hMin > hMax;
+    const useMotion = motionTh > 0 && prevPixels && prevPixels.length === data.length;
 
     let sumX = 0, sumY = 0, count = 0;
     let minX = PROC_W, maxXp = 0, minY = procH, maxYp = 0;
@@ -394,6 +412,17 @@
       for (let x = 0; x < W; x++) {
         const i = (y * W + x) * 4;
         const r = data[i], g = data[i + 1], b = data[i + 2];
+
+        // Motion gating: skip pixels that haven't changed since last frame.
+        // Tennis ball moves; static yellow blobs (ball cart, court markings) get filtered.
+        if (useMotion) {
+          const dM =
+            Math.abs(r - prevPixels[i]) +
+            Math.abs(g - prevPixels[i + 1]) +
+            Math.abs(b - prevPixels[i + 2]);
+          if (dM < motionTh) continue;
+        }
+
         // Inline HSV check (fast path)
         const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
         const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
@@ -419,6 +448,13 @@
         if (y > maxYp) maxYp = y;
       }
     }
+
+    // Stash current frame for next iteration's motion check
+    if (!prevPixels || prevPixels.length !== data.length) {
+      prevPixels = new Uint8ClampedArray(data.length);
+    }
+    prevPixels.set(data);
+
     if (count < minPix || count > maxPix) return null;
 
     const cxP = sumX / count;
