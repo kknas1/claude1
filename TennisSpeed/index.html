@@ -115,12 +115,28 @@
   .start-overlay button { padding: 16px 28px; font-size: 17px; }
 
   .hidden { display: none !important; }
+
+  /* Version badge */
+  #version {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    right: 12px;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    padding: 5px 9px; border-radius: 8px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+    opacity: 0.7; pointer-events: none;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid rgba(255,255,255,0.08);
+    z-index: 10;
+  }
 </style>
 </head>
 <body>
 <div id="app">
   <video id="video" playsinline autoplay muted></video>
   <canvas id="overlay"></canvas>
+  <div id="version">v0.3.0</div>
 
   <div id="hud">
     <div class="speed-card">
@@ -226,6 +242,9 @@
 <script>
 (() => {
   'use strict';
+
+  // 매 커밋마다 patch 번호 +1. CHANGELOG는 README 참고.
+  const VERSION = 'v0.3.0';
 
   // ===== Elements =====
   const $ = (id) => document.getElementById(id);
@@ -701,6 +720,11 @@
   // Pre-size canvases so calibration drawing works even before video plays
   overlay.width = window.innerWidth;
   overlay.height = window.innerHeight;
+
+  // Apply version label (in case the HTML constant gets out of sync)
+  const versionEl = document.getElementById('version');
+  if (versionEl) versionEl.textContent = VERSION;
+  console.log('TennisSpeed', VERSION);
 })();
 </script>
 </body>
