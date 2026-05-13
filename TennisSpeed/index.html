@@ -116,6 +116,29 @@
 
   .hidden { display: none !important; }
 
+  /* Toggle (checkbox) rows in settings */
+  .toggle {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0; cursor: pointer;
+  }
+  .toggle input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    width: 48px; height: 28px; border-radius: 14px;
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.25);
+    position: relative; flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .toggle input[type="checkbox"]::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; transition: transform 0.15s;
+  }
+  .toggle input[type="checkbox"]:checked { background: #34c759; }
+  .toggle input[type="checkbox"]:checked::after { transform: translateX(20px); }
+  .toggle span { font-size: 15px; font-weight: 600; }
+  .hint { font-size: 12px; opacity: 0.7; margin-top: 2px; line-height: 1.45; }
+
   /* Version badge */
   #version {
     position: absolute;
@@ -189,14 +212,34 @@
 
   <!-- Settings panel -->
   <div id="settingsPanel" class="panel hidden">
-    <h2>검출 설정</h2>
+    <h2>모드</h2>
+
+    <label class="toggle">
+      <input type="checkbox" id="autoCalToggle" checked />
+      <span>자동 보정 (탭 보정 불필요)</span>
+    </label>
+    <p class="hint">테니스 공 표준 지름(67mm)을 이용해 매 프레임 mm/px 자동 계산. 끄면 수동 탭 보정 모드.</p>
+
+    <label class="toggle">
+      <input type="checkbox" id="mlToggle" />
+      <span>ML 검출 모드 (느림, 정확)</span>
+    </label>
+    <p class="hint">TensorFlow.js + COCO-SSD로 "sports ball" 클래스를 검출. 색상 의존 줄임. 첫 실행 시 ~6MB 다운로드. 끄면 색상 추적.</p>
+
+    <div class="field">
+      <div class="field-row"><span>공 지름 (mm)</span><span id="ballDiamV">67</span></div>
+      <input type="range" id="ballDiam" min="40" max="100" value="67" />
+      <p class="hint">자동 보정 기준값. 테니스 67mm, 야구 73mm, 탁구 40mm.</p>
+    </div>
+
+    <h2 style="margin-top:8px;">검출 임계값</h2>
     <p>야외/실내, 정지한 노란 물체(카트의 공 더미 등)에 따라 조정하세요.</p>
 
     <div class="field">
       <div class="field-row"><span>움직임 감지 (0=비활성)</span><span id="motionV">40</span></div>
       <input type="range" id="motion" min="0" max="200" value="40" />
-      <p style="font-size:12px;opacity:0.7;margin-top:2px;">
-        직전 프레임 대비 변한 픽셀만 검출 대상. 정지한 카트·공 더미를 제외합니다. 너무 높이면 느린 공이 안 잡힙니다.
+      <p class="hint">
+        직전 프레임 대비 변한 픽셀만 검출 대상. 정지한 카트·공 더미를 제외합니다. 너무 높이면 느린 공이 안 잡힙니다. (색상 모드 전용)
       </p>
     </div>
 
@@ -244,7 +287,11 @@
   'use strict';
 
   // 매 커밋마다 patch 번호 +1. CHANGELOG는 README 참고.
-  const VERSION = 'v0.3.0';
+  const VERSION = 'v0.4.0';
+
+  // TF.js + COCO-SSD CDN URLs (lazy-loaded only when ML mode is enabled)
+  const TFJS_URL = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js';
+  const COCOSSD_URL = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js';
 
   // ===== Elements =====
   const $ = (id) => document.getElementById(id);
@@ -276,7 +323,11 @@
   const closeSettings = $('closeSettings');
   const resetSettings = $('resetSettings');
 
+  const autoCalToggle = $('autoCalToggle');
+  const mlToggle      = $('mlToggle');
+
   const sliders = {
+    ballDiam:   { el: $('ballDiam'),   val: $('ballDiamV'),   def: 67  },
     motion:     { el: $('motion'),     val: $('motionV'),     def: 40  },
     hMin:       { el: $('hMin'),       val: $('hMinV'),       def: 35  },
     hMax:       { el: $('hMax'),       val: $('hMaxV'),       def: 85  },
@@ -309,13 +360,23 @@
   let trail = [];                 // recent positions for drawing trail
   let prevPixels = null;          // last proc-frame pixel buffer (for motion gating)
 
+  // Mode + ML state
+  let autoCal = true;
+  let detectMode = 'color';       // 'color' | 'ml'
+  let mlModel = null;             // loaded coco-ssd model
+  let mlLoading = false;
+  let mlSource = null;            // last detection source for diag ('color'|'ml')
+
   // ===== Helpers =====
   function setStatus(msg) { statusEl.textContent = msg; }
   function updateDiag() {
     const calibTxt = metersPerPixel
-      ? `${(metersPerPixel * 1000).toFixed(2)} mm/px`
+      ? `${(metersPerPixel * 1000).toFixed(2)} mm/px${autoCal ? ' 자동' : ''}`
       : '보정 미완료';
-    diagEl.textContent = `FPS ${curFps || '—'} · ${calibTxt}`;
+    const modeTxt = detectMode === 'ml'
+      ? (mlModel ? 'ML' : (mlLoading ? 'ML로딩' : 'ML대기'))
+      : '색상';
+    diagEl.textContent = `${modeTxt} · FPS ${curFps || '—'} · ${calibTxt}`;
     diagEl.classList.toggle('warn', !metersPerPixel);
   }
 
@@ -373,8 +434,13 @@
       startBtn.classList.remove('primary');
       startBtn.classList.add('danger');
       calibBtn.disabled = false;
-      setStatus(metersPerPixel ? '측정 중' : '먼저 [보정] 버튼으로 거리 보정을 진행하세요');
-      requestAnimationFrame(loop);
+      const calibMsg = autoCal
+        ? '자동 보정 ON · 공이 보이면 mm/px가 자동 설정됩니다'
+        : (metersPerPixel ? '측정 중 (수동 보정 적용)' : '먼저 [보정] 또는 [자동 보정 ON]');
+      setStatus(calibMsg);
+      // Kick off ML model load in the background if mode is on
+      if (detectMode === 'ml' && !mlModel && !mlLoading) loadMl();
+      loop();
     } catch (e) {
       console.error(e);
       setStatus('카메라 실패: ' + (e.message || e.name || e));
@@ -406,8 +472,8 @@
     proc.height = procH;
   }
 
-  // ===== Ball detection =====
-  function detectBall() {
+  // ===== Ball detection (color) =====
+  function detectBallColor() {
     if (!video.videoWidth) return null;
     procCtx.drawImage(video, 0, 0, PROC_W, procH);
     const img = procCtx.getImageData(0, 0, PROC_W, procH);
@@ -478,17 +544,105 @@
 
     const cxP = sumX / count;
     const cyP = sumY / count;
-    const rP = Math.max(maxXp - minX, maxYp - minY) / 2;
+    const bboxW = maxXp - minX;
+    const bboxH = maxYp - minY;
+    const rP = Math.max(bboxW, bboxH) / 2;
 
     const rect = getDisplayedVideoRect();
     const sx = rect.w / PROC_W;
     const sy = rect.h / procH;
+    // Use min(w,h) for diameter to mitigate motion-blur stretching along motion axis
+    const pxDiameter = Math.min(bboxW * sx, bboxH * sy);
     return {
       x: rect.x + cxP * sx,
       y: rect.y + cyP * sy,
       r: Math.max(rP * sx, rP * sy),
-      count
+      count,
+      pxDiameter,
+      source: 'color'
     };
+  }
+
+  // ===== Ball detection (ML / COCO-SSD) =====
+  async function detectBallML() {
+    if (!mlModel || !video.videoWidth) return null;
+    let preds;
+    try {
+      preds = await mlModel.detect(video, 5, 0.25);
+    } catch (e) {
+      console.error('ML detect error', e);
+      return null;
+    }
+    let best = null;
+    for (const p of preds) {
+      if (p.class === 'sports ball' && p.score >= 0.3) {
+        if (!best || p.score > best.score) best = p;
+      }
+    }
+    if (!best) return null;
+    // bbox: [x, y, w, h] in video pixel coords; map to overlay coords
+    const rect = getDisplayedVideoRect();
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const sxd = rect.w / vw, syd = rect.h / vh;
+    const [bx, by, bw, bh] = best.bbox;
+    const cx = rect.x + (bx + bw / 2) * sxd;
+    const cy = rect.y + (by + bh / 2) * syd;
+    const pxDiameter = Math.min(bw * sxd, bh * syd);
+    return {
+      x: cx, y: cy,
+      r: Math.max(bw * sxd, bh * syd) / 2,
+      count: Math.round(best.score * 1000),
+      pxDiameter,
+      score: best.score,
+      source: 'ml'
+    };
+  }
+
+  // ===== ML model lazy loader =====
+  function injectScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('Failed to load ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function loadMl() {
+    if (mlModel || mlLoading) return;
+    mlLoading = true;
+    setStatus('ML 모델 로딩 중... (~6MB, 처음 한 번만)');
+    updateDiag();
+    try {
+      if (typeof tf === 'undefined') await injectScript(TFJS_URL);
+      if (typeof cocoSsd === 'undefined') await injectScript(COCOSSD_URL);
+      // 'lite_mobilenet_v2' is smaller/faster than default
+      mlModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+      setStatus('ML 모델 준비 완료 · 측정 중');
+    } catch (e) {
+      console.error('ML load failed', e);
+      setStatus('ML 로드 실패: ' + (e.message || 'unknown') + ' — 색상 모드로 전환');
+      mlToggle.checked = false;
+      detectMode = 'color';
+    } finally {
+      mlLoading = false;
+      updateDiag();
+    }
+  }
+
+  // ===== Auto-calibration =====
+  function updateAutoCal(det) {
+    if (!autoCal || !det || !det.pxDiameter || det.pxDiameter < 4) return;
+    const ballMeters = (+sliders.ballDiam.el.value) / 1000;
+    const instantMpp = ballMeters / det.pxDiameter;
+    if (metersPerPixel == null) {
+      metersPerPixel = instantMpp;
+    } else {
+      // EMA: faster adaptation in ML mode (less noisy), slower in color mode
+      const alpha = det.source === 'ml' ? 0.4 : 0.25;
+      metersPerPixel = metersPerPixel * (1 - alpha) + instantMpp * alpha;
+    }
   }
 
   // ===== Speed =====
@@ -577,31 +731,39 @@
     }
   }
 
-  // ===== Main loop =====
-  function loop() {
-    if (!running) return;
-    const t = performance.now();
-    const det = detectBall();
-    if (det) {
-      updateSpeed(det, t);
-      trail.push({ x: det.x, y: det.y, t });
-    } else {
-      // Reset reference if we lost the ball for too long
-      if (lastDetection && t - lastDetection.t > 250) lastDetection = null;
-    }
-    // Trim trail to ~500ms
-    while (trail.length && t - trail[0].t > 500) trail.shift();
+  // ===== Main loop (async to support awaited ML inference) =====
+  async function loop() {
+    while (running) {
+      const t = await new Promise(r => requestAnimationFrame(r));
+      if (!running) break;
 
-    draw(det, t);
+      let det = null;
+      if (detectMode === 'ml' && mlModel) {
+        try { det = await detectBallML(); } catch (e) { console.error(e); }
+      } else {
+        det = detectBallColor();
+      }
 
-    frameCount++;
-    if (t - lastFpsT >= 500) {
-      curFps = Math.round(frameCount * 1000 / (t - lastFpsT));
-      frameCount = 0;
-      lastFpsT = t;
-      updateDiag();
+      if (det) {
+        mlSource = det.source;
+        updateAutoCal(det);
+        updateSpeed(det, t);
+        trail.push({ x: det.x, y: det.y, t });
+      } else {
+        if (lastDetection && t - lastDetection.t > 250) lastDetection = null;
+      }
+      while (trail.length && t - trail[0].t > 500) trail.shift();
+
+      draw(det, t);
+
+      frameCount++;
+      if (t - lastFpsT >= 500) {
+        curFps = Math.round(frameCount * 1000 / (t - lastFpsT));
+        frameCount = 0;
+        lastFpsT = t;
+        updateDiag();
+      }
     }
-    requestAnimationFrame(loop);
   }
 
   // ===== Calibration =====
@@ -629,6 +791,12 @@
         if (pxDist > 1) {
           metersPerPixel = realMeters / pxDist;
           localStorage.setItem('ts_mpp', String(metersPerPixel));
+          // Manual calibration takes precedence — disable auto-cal so it doesn't get washed out
+          if (autoCal) {
+            autoCal = false;
+            autoCalToggle.checked = false;
+            localStorage.setItem('ts_autoCal', '0');
+          }
           // Reset stale speeds collected with previous calibration
           recentSpeeds = [];
           allSpeeds = [];
@@ -636,7 +804,7 @@
           speedNowEl.textContent = '0';
           speedMaxEl.textContent = '0';
           speedAvgEl.textContent = '0';
-          setStatus(`보정 완료 · ${(metersPerPixel * 1000).toFixed(2)} mm/px`);
+          setStatus(`수동 보정 완료 · ${(metersPerPixel * 1000).toFixed(2)} mm/px (자동 보정 OFF)`);
         }
       }
     } else if (!commit) {
@@ -684,6 +852,37 @@
   });
   settingsBtn.addEventListener('click', () => settingsPanel.classList.remove('hidden'));
   closeSettings.addEventListener('click', () => settingsPanel.classList.add('hidden'));
+
+  // Auto-cal toggle
+  const savedAuto = localStorage.getItem('ts_autoCal');
+  if (savedAuto !== null) autoCal = savedAuto === '1';
+  autoCalToggle.checked = autoCal;
+  autoCalToggle.addEventListener('change', () => {
+    autoCal = autoCalToggle.checked;
+    localStorage.setItem('ts_autoCal', autoCal ? '1' : '0');
+    updateDiag();
+  });
+
+  // ML toggle
+  const savedMl = localStorage.getItem('ts_mlMode');
+  if (savedMl === '1') {
+    detectMode = 'ml';
+    mlToggle.checked = true;
+  }
+  mlToggle.addEventListener('change', async () => {
+    if (mlToggle.checked) {
+      detectMode = 'ml';
+      localStorage.setItem('ts_mlMode', '1');
+      updateDiag();
+      await loadMl();
+    } else {
+      detectMode = 'color';
+      localStorage.setItem('ts_mlMode', '0');
+      updateDiag();
+    }
+  });
+  // If user had ML mode saved on, kick off load eagerly when camera starts (handled below).
+
 
   // ===== Sliders: live label + persistence =====
   for (const [key, s] of Object.entries(sliders)) {
