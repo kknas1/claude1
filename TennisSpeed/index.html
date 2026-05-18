@@ -226,6 +226,12 @@
     </label>
     <p class="hint">TensorFlow.js + COCO-SSD로 "sports ball" 클래스를 검출. 색상 의존 줄임. 첫 실행 시 ~6MB 다운로드. 끄면 색상 추적.</p>
 
+    <label class="toggle">
+      <input type="checkbox" id="longRangeToggle" />
+      <span>원거리 모드 (작은 공 인식)</span>
+    </label>
+    <p class="hint">처리 해상도를 640으로 올려 멀리 있는 작은 공도 검출. iPhone에서 FPS 약 30~45로 떨어질 수 있음. 가까운 공만 측정한다면 OFF 권장.</p>
+
     <div class="field">
       <div class="field-row"><span>공 지름 (mm)</span><span id="ballDiamV">67</span></div>
       <input type="range" id="ballDiam" min="40" max="100" value="67" />
@@ -236,10 +242,10 @@
     <p>야외/실내, 정지한 노란 물체(카트의 공 더미 등)에 따라 조정하세요.</p>
 
     <div class="field">
-      <div class="field-row"><span>움직임 감지 (0=비활성)</span><span id="motionV">40</span></div>
-      <input type="range" id="motion" min="0" max="200" value="40" />
+      <div class="field-row"><span>움직임 감지 (0=비활성)</span><span id="motionV">25</span></div>
+      <input type="range" id="motion" min="0" max="200" value="25" />
       <p class="hint">
-        직전 프레임 대비 변한 픽셀만 검출 대상. 정지한 카트·공 더미를 제외합니다. 너무 높이면 느린 공이 안 잡힙니다. (색상 모드 전용)
+        직전 프레임 대비 변한 픽셀만 검출 대상. 정지한 카트·공 더미를 제외합니다. 너무 높이면 작은/느린 공이 안 잡힙니다. (색상 모드 전용)
       </p>
     </div>
 
@@ -255,20 +261,24 @@
       <input type="range" id="hMax" min="0" max="360" value="85" />
     </div>
     <div class="field">
-      <div class="field-row"><span>채도 Saturation 최소 (%)</span><span id="sMinV">30</span></div>
-      <input type="range" id="sMin" min="0" max="100" value="30" />
+      <div class="field-row"><span>채도 Saturation 최소 (%)</span><span id="sMinV">25</span></div>
+      <input type="range" id="sMin" min="0" max="100" value="25" />
     </div>
     <div class="field">
-      <div class="field-row"><span>명도 Value 최소 (%)</span><span id="vMinV">35</span></div>
-      <input type="range" id="vMin" min="0" max="100" value="35" />
+      <div class="field-row"><span>명도 Value 최소 (%)</span><span id="vMinV">30</span></div>
+      <input type="range" id="vMin" min="0" max="100" value="30" />
     </div>
     <div class="field">
-      <div class="field-row"><span>최소 검출 픽셀 수</span><span id="minPixV">20</span></div>
-      <input type="range" id="minPix" min="3" max="500" value="20" />
+      <div class="field-row"><span>최소 검출 픽셀 수 (작은 공일수록 낮게)</span><span id="minPixV">4</span></div>
+      <input type="range" id="minPix" min="2" max="500" value="4" />
     </div>
     <div class="field">
       <div class="field-row"><span>최대 검출 픽셀 수</span><span id="maxPixV">3000</span></div>
       <input type="range" id="maxPix" min="100" max="20000" step="100" value="3000" />
+    </div>
+    <div class="field">
+      <div class="field-row"><span>ML 신뢰도 임계값 (% — 낮을수록 작은 공도 채택)</span><span id="mlScoreV">20</span></div>
+      <input type="range" id="mlScore" min="5" max="80" value="20" />
     </div>
     <div class="field">
       <div class="field-row"><span>속도 노이즈 필터 (km/h 이하 무시)</span><span id="speedFloorV">5</span></div>
@@ -287,7 +297,7 @@
   'use strict';
 
   // 매 커밋마다 patch 번호 +1. CHANGELOG는 README 참고.
-  const VERSION = 'v0.4.0';
+  const VERSION = 'v0.5.0';
 
   // TF.js + COCO-SSD CDN URLs (lazy-loaded only when ML mode is enabled)
   const TFJS_URL = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js';
@@ -323,26 +333,30 @@
   const closeSettings = $('closeSettings');
   const resetSettings = $('resetSettings');
 
-  const autoCalToggle = $('autoCalToggle');
-  const mlToggle      = $('mlToggle');
+  const autoCalToggle   = $('autoCalToggle');
+  const mlToggle        = $('mlToggle');
+  const longRangeToggle = $('longRangeToggle');
 
   const sliders = {
     ballDiam:   { el: $('ballDiam'),   val: $('ballDiamV'),   def: 67  },
-    motion:     { el: $('motion'),     val: $('motionV'),     def: 40  },
+    motion:     { el: $('motion'),     val: $('motionV'),     def: 25  },
     hMin:       { el: $('hMin'),       val: $('hMinV'),       def: 35  },
     hMax:       { el: $('hMax'),       val: $('hMaxV'),       def: 85  },
-    sMin:       { el: $('sMin'),       val: $('sMinV'),       def: 30  },
-    vMin:       { el: $('vMin'),       val: $('vMinV'),       def: 35  },
-    minPix:     { el: $('minPix'),     val: $('minPixV'),     def: 20  },
+    sMin:       { el: $('sMin'),       val: $('sMinV'),       def: 25  },
+    vMin:       { el: $('vMin'),       val: $('vMinV'),       def: 30  },
+    minPix:     { el: $('minPix'),     val: $('minPixV'),     def: 4   },
     maxPix:     { el: $('maxPix'),     val: $('maxPixV'),     def: 3000 },
+    mlScore:    { el: $('mlScore'),    val: $('mlScoreV'),    def: 20  },
     speedFloor: { el: $('speedFloor'), val: $('speedFloorV'), def: 5   },
   };
 
   // ===== Off-screen processing canvas (downscaled for speed) =====
+  // 480 = 작은 공도 잘 검출 + iPhone에서 60fps 유지 가능한 절충값
+  // 원거리 모드에서는 procW를 640으로 올려 더 작은 공도 잡음
   const proc = document.createElement('canvas');
   const procCtx = proc.getContext('2d', { willReadFrequently: true });
-  const PROC_W = 320;
-  let procH = 240;
+  let PROC_W = 480;
+  let procH = 270;
 
   // ===== State =====
   let stream = null;
@@ -366,6 +380,7 @@
   let mlModel = null;             // loaded coco-ssd model
   let mlLoading = false;
   let mlSource = null;            // last detection source for diag ('color'|'ml')
+  let longRange = false;          // 640px proc resolution when true
 
   // ===== Helpers =====
   function setStatus(msg) { statusEl.textContent = msg; }
@@ -467,9 +482,12 @@
     overlay.width  = cssW;
     overlay.height = cssH;
     const vw = video.videoWidth || 1280, vh = video.videoHeight || 720;
+    PROC_W = longRange ? 640 : 480;
     procH = Math.max(60, Math.round(PROC_W * vh / vw));
     proc.width  = PROC_W;
     proc.height = procH;
+    // Invalidate prev-frame buffer since shape changed
+    prevPixels = null;
   }
 
   // ===== Ball detection (color) =====
@@ -566,16 +584,17 @@
   // ===== Ball detection (ML / COCO-SSD) =====
   async function detectBallML() {
     if (!mlModel || !video.videoWidth) return null;
+    const minScore = (+sliders.mlScore.el.value) / 100;
     let preds;
     try {
-      preds = await mlModel.detect(video, 5, 0.25);
+      preds = await mlModel.detect(video, 10, Math.max(0.05, minScore - 0.05));
     } catch (e) {
       console.error('ML detect error', e);
       return null;
     }
     let best = null;
     for (const p of preds) {
-      if (p.class === 'sports ball' && p.score >= 0.3) {
+      if (p.class === 'sports ball' && p.score >= minScore) {
         if (!best || p.score > best.score) best = p;
       }
     }
@@ -882,6 +901,18 @@
     }
   });
   // If user had ML mode saved on, kick off load eagerly when camera starts (handled below).
+
+  // Long-range toggle (higher proc resolution for small far-away balls)
+  const savedLR = localStorage.getItem('ts_longRange');
+  if (savedLR === '1') {
+    longRange = true;
+    longRangeToggle.checked = true;
+  }
+  longRangeToggle.addEventListener('change', () => {
+    longRange = longRangeToggle.checked;
+    localStorage.setItem('ts_longRange', longRange ? '1' : '0');
+    if (running) resizeCanvases();
+  });
 
 
   // ===== Sliders: live label + persistence =====
