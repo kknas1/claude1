@@ -1,0 +1,1895 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0a0014" />
+<title>WHOOS 👀 — 누가 너를 뽑았을까?</title>
+<style>
+  :root {
+    --bg: #0a0014;
+    --bg-2: #14001f;
+    --card: rgba(255, 255, 255, 0.06);
+    --card-strong: rgba(255, 255, 255, 0.1);
+    --border: rgba(255, 255, 255, 0.1);
+    --text: #ffffff;
+    --muted: rgba(255, 255, 255, 0.55);
+    --accent: #ff2bd6;
+    --accent-2: #7c3aed;
+    --accent-3: #00e0ff;
+    --gold: #ffc83d;
+    --danger: #ff3b6b;
+    --grad: linear-gradient(135deg, #ff2bd6 0%, #7c3aed 50%, #00e0ff 100%);
+    --grad-warm: linear-gradient(135deg, #ffc83d 0%, #ff2bd6 100%);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Pretendard', system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 10%, rgba(255, 43, 214, 0.25), transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(0, 224, 255, 0.18), transparent 45%),
+      radial-gradient(circle at 50% 50%, rgba(124, 58, 237, 0.15), transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #app {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0 auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    z-index: 1;
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top, 16px) 0 env(safe-area-inset-bottom, 0px);
+    opacity: 0;
+    transform: translateX(40px);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+    pointer-events: none;
+  }
+  .screen.active {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  .screen.exit-left {
+    transform: translateX(-40px);
+    opacity: 0;
+  }
+
+  .container {
+    padding: 0 24px;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .container::-webkit-scrollbar { display: none; }
+
+  /* ============ ONBOARDING ============ */
+  .ob-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 60px 28px 40px;
+    text-align: center;
+  }
+  .logo-big {
+    font-size: 88px;
+    font-weight: 900;
+    letter-spacing: -4px;
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin: 0;
+    line-height: 1;
+  }
+  .logo-eyes {
+    font-size: 64px;
+    margin: 8px 0 24px;
+    animation: bounce 1.6s ease-in-out infinite;
+  }
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+  .ob-title {
+    font-size: 28px;
+    font-weight: 800;
+    margin: 0 0 12px;
+    letter-spacing: -0.5px;
+  }
+  .ob-sub {
+    font-size: 17px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin: 0;
+  }
+  .ob-features {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 40px 0;
+    text-align: left;
+  }
+  .ob-feature {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    background: var(--card);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    padding: 16px 18px;
+    border-radius: 18px;
+  }
+  .ob-feature-emoji {
+    font-size: 28px;
+  }
+  .ob-feature-text {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .ob-feature-text small {
+    display: block;
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 2px;
+  }
+
+  /* ============ BUTTONS ============ */
+  .btn-primary {
+    width: 100%;
+    background: var(--grad);
+    color: #fff;
+    border: 0;
+    padding: 18px;
+    border-radius: 999px;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    cursor: pointer;
+    box-shadow: 0 14px 40px -10px rgba(255, 43, 214, 0.5);
+    transition: transform 0.1s ease;
+  }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-ghost {
+    width: 100%;
+    background: transparent;
+    color: var(--muted);
+    border: 0;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 10px;
+    cursor: pointer;
+  }
+  .btn-secondary {
+    width: 100%;
+    background: var(--card-strong);
+    color: #fff;
+    border: 1px solid var(--border);
+    padding: 16px;
+    border-radius: 999px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-secondary:active { transform: scale(0.97); }
+
+  /* ============ TOP BAR ============ */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 24px 16px;
+  }
+  .topbar-logo {
+    font-size: 26px;
+    font-weight: 900;
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    letter-spacing: -1.5px;
+  }
+  .topbar-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    color: #fff;
+    position: relative;
+  }
+  .icon-btn .dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  /* ============ POLL CARDS ============ */
+  .poll-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 12px 0 20px;
+  }
+  .poll-card {
+    background: var(--grad);
+    border-radius: 28px;
+    padding: 24px 22px 22px;
+    margin: 0 24px;
+    box-shadow: 0 20px 60px -20px rgba(124, 58, 237, 0.5);
+    animation: pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes pop {
+    from { transform: scale(0.92) translateY(20px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  .poll-emoji-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .poll-emoji {
+    font-size: 44px;
+  }
+  .poll-counter {
+    background: rgba(0, 0, 0, 0.3);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .poll-question {
+    color: #fff;
+    font-size: 26px;
+    font-weight: 900;
+    line-height: 1.2;
+    margin: 4px 0 0;
+    letter-spacing: -0.5px;
+  }
+  .poll-options {
+    margin: 18px 24px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .poll-option {
+    background: var(--card-strong);
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 18px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .poll-option:active {
+    transform: scale(0.96);
+  }
+  .poll-option.picked {
+    background: var(--grad);
+    border-color: transparent;
+    box-shadow: 0 8px 30px -8px rgba(255, 43, 214, 0.6);
+  }
+  .poll-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--grad-warm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 800;
+    color: #1a0a0a;
+  }
+  .poll-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .poll-bottom {
+    padding: 0 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .skip-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 0;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* ============ INBOX ============ */
+  .inbox-hero {
+    margin: 0 24px 18px;
+    background: var(--grad);
+    border-radius: 22px;
+    padding: 18px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 12px 40px -16px rgba(124, 58, 237, 0.6);
+  }
+  .inbox-hero-left {
+    color: #fff;
+  }
+  .inbox-hero-top {
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .inbox-hero-num {
+    font-size: 32px;
+    font-weight: 900;
+    line-height: 1.1;
+    margin: 2px 0;
+  }
+  .inbox-hero-sub {
+    font-size: 13px;
+    opacity: 0.85;
+  }
+  .inbox-hero-crown {
+    font-size: 44px;
+  }
+  .section-label {
+    padding: 0 24px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 18px 0 10px;
+  }
+  .inbox-list {
+    padding: 0 24px 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .inbox-item {
+    background: var(--card);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  .inbox-item.unread::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--grad);
+  }
+  .inbox-avatar {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    border-radius: 14px;
+    background: var(--grad);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    filter: blur(0);
+  }
+  .inbox-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .inbox-clue {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  .inbox-question {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .inbox-time {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .reveal-btn {
+    background: var(--grad);
+    color: #fff;
+    border: 0;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* ============ TAB BAR ============ */
+  .tabbar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(10, 0, 20, 0.85);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-top: 1px solid var(--border);
+    padding: 10px 20px calc(10px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    justify-content: space-around;
+    z-index: 5;
+  }
+  .tab-item {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    padding: 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    position: relative;
+  }
+  .tab-item.active {
+    color: #fff;
+  }
+  .tab-icon {
+    font-size: 22px;
+  }
+  .tab-item.active .tab-icon {
+    filter: drop-shadow(0 0 8px rgba(255, 43, 214, 0.6));
+  }
+  .tab-badge {
+    position: absolute;
+    top: 4px;
+    right: 26%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 999px;
+    min-width: 18px;
+    text-align: center;
+  }
+
+  /* ============ PROFILE ============ */
+  .profile-hero {
+    text-align: center;
+    padding: 20px 24px 24px;
+  }
+  .profile-avatar {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: var(--grad-warm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    font-weight: 900;
+    color: #1a0a0a;
+    margin: 0 auto 14px;
+    box-shadow: 0 20px 50px -20px rgba(255, 43, 214, 0.5);
+  }
+  .profile-name {
+    font-size: 24px;
+    font-weight: 900;
+    margin: 0;
+    letter-spacing: -0.5px;
+  }
+  .profile-meta {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 4px 0 0;
+  }
+  .stat-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin: 20px 24px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 14px 8px;
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 22px;
+    font-weight: 900;
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pro-banner {
+    margin: 0 24px 18px;
+    background: var(--grad-warm);
+    border-radius: 22px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    color: #1a0a0a;
+    box-shadow: 0 14px 40px -14px rgba(255, 200, 61, 0.5);
+  }
+  .pro-crown {
+    font-size: 40px;
+  }
+  .pro-text-main {
+    font-size: 17px;
+    font-weight: 900;
+    letter-spacing: -0.3px;
+  }
+  .pro-text-sub {
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.7;
+  }
+  .pro-arrow {
+    margin-left: auto;
+    font-size: 22px;
+    font-weight: 900;
+  }
+  .settings-list {
+    margin: 0 24px 100px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .settings-item {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .settings-item:last-child { border-bottom: 0; }
+  .settings-emoji {
+    margin-right: 14px;
+    font-size: 20px;
+  }
+  .settings-arrow {
+    margin-left: auto;
+    color: var(--muted);
+  }
+
+  /* ============ MODAL / PAYWALL ============ */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .modal {
+    background: linear-gradient(180deg, #1a002a 0%, #0a0014 100%);
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    padding: 12px 24px calc(28px + env(safe-area-inset-bottom, 0px));
+    width: 100%;
+    max-width: 440px;
+    border-top: 1px solid var(--border);
+    transform: translateY(100%);
+    transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .modal-overlay.show .modal {
+    transform: translateY(0);
+  }
+  .modal-handle {
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    margin: 0 auto 18px;
+  }
+  .paywall-emoji {
+    font-size: 64px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .paywall-title {
+    font-size: 26px;
+    font-weight: 900;
+    text-align: center;
+    margin: 0 0 6px;
+    letter-spacing: -0.5px;
+  }
+  .paywall-title span {
+    background: var(--grad-warm);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .paywall-sub {
+    text-align: center;
+    color: var(--muted);
+    font-size: 15px;
+    margin: 0 0 22px;
+  }
+  .paywall-feats {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+  .paywall-feat {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+  }
+  .paywall-feat-emoji { font-size: 24px; }
+  .paywall-feat-text {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .paywall-feat-text small {
+    display: block;
+    color: var(--muted);
+    font-weight: 500;
+    margin-top: 2px;
+    font-size: 12px;
+  }
+  .paywall-plans {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .paywall-plan {
+    flex: 1;
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: 18px;
+    padding: 14px 10px;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+  }
+  .paywall-plan.selected {
+    border-color: var(--gold);
+    background: rgba(255, 200, 61, 0.1);
+  }
+  .paywall-plan-tag {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--gold);
+    color: #1a0a0a;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 3px 10px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .paywall-plan-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .paywall-plan-price {
+    font-size: 22px;
+    font-weight: 900;
+    margin: 4px 0 0;
+  }
+  .paywall-plan-period {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .paywall-btn {
+    width: 100%;
+    background: var(--grad-warm);
+    color: #1a0a0a;
+    border: 0;
+    padding: 18px;
+    border-radius: 999px;
+    font-size: 17px;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 14px 40px -10px rgba(255, 200, 61, 0.5);
+    letter-spacing: -0.3px;
+  }
+  .paywall-foot {
+    text-align: center;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .paywall-alt {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    border: 0;
+    margin-top: 12px;
+    width: 100%;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  /* ============ FRIEND SETUP ============ */
+  .setup-head {
+    padding: 20px 24px 8px;
+  }
+  .setup-step {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .setup-title {
+    font-size: 28px;
+    font-weight: 900;
+    margin: 6px 0 8px;
+    letter-spacing: -0.5px;
+  }
+  .setup-sub {
+    color: var(--muted);
+    font-size: 15px;
+    margin: 0 0 18px;
+    line-height: 1.4;
+  }
+  .input-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .input-card input {
+    background: transparent;
+    color: #fff;
+    border: 0;
+    outline: 0;
+    flex: 1;
+    font-size: 17px;
+    font-weight: 600;
+    font-family: inherit;
+  }
+  .input-card input::placeholder {
+    color: var(--muted);
+  }
+  .chip-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .chip {
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .chip.selected {
+    background: var(--grad);
+    border-color: transparent;
+  }
+  .footer-cta {
+    padding: 12px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+  .friend-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 0 24px 110px;
+  }
+  .friend-pick {
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: 18px;
+    padding: 14px 10px;
+    text-align: center;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+  }
+  .friend-pick.added {
+    border-color: var(--accent);
+    background: rgba(255, 43, 214, 0.1);
+  }
+  .friend-pick.added::after {
+    content: '✓';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    background: var(--grad);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .friend-pick .poll-avatar {
+    width: 52px;
+    height: 52px;
+    font-size: 22px;
+  }
+  .friend-pick-name {
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .friend-pick-school {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* ============ REVEAL SCREEN ============ */
+  .reveal-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0 32px;
+    gap: 16px;
+  }
+  .reveal-emoji-big {
+    font-size: 80px;
+    animation: spin 4s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(-5deg); }
+    50% { transform: rotate(5deg); }
+    to { transform: rotate(-5deg); }
+  }
+  .reveal-question {
+    font-size: 22px;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.5px;
+  }
+  .reveal-name-card {
+    background: var(--grad);
+    border-radius: 28px;
+    padding: 28px 32px;
+    box-shadow: 0 20px 60px -16px rgba(255, 43, 214, 0.6);
+    margin: 8px 0;
+  }
+  .reveal-from-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .reveal-name {
+    font-size: 38px;
+    font-weight: 900;
+    color: #fff;
+    margin: 4px 0;
+    letter-spacing: -1px;
+  }
+  .reveal-meta {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .reveal-foot {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0;
+  }
+
+  /* ============ TOAST ============ */
+  .toast {
+    position: fixed;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: rgba(255, 255, 255, 0.95);
+    color: #0a0014;
+    padding: 12px 22px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 700;
+    z-index: 200;
+    transition: transform 0.3s ease;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ============ HEADER ============ */
+  .back-bar {
+    padding: 8px 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .back-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    color: #fff;
+  }
+  .back-title {
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  /* ============ EMPTY STATE ============ */
+  .empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0 32px;
+    color: var(--muted);
+  }
+  .empty-emoji { font-size: 64px; margin-bottom: 12px; }
+  .empty-title { font-size: 20px; font-weight: 800; color: #fff; margin: 0 0 6px; }
+  .empty-sub { font-size: 14px; line-height: 1.5; }
+
+  /* ============ INVITE ============ */
+  .invite-banner {
+    margin: 0 24px 16px;
+    background: linear-gradient(135deg, #00e0ff 0%, #7c3aed 100%);
+    border-radius: 22px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+  }
+  .invite-gift {
+    font-size: 36px;
+  }
+  .invite-text-main {
+    font-size: 15px;
+    font-weight: 800;
+  }
+  .invite-text-sub {
+    font-size: 12px;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+
+  /* small */
+  .pill {
+    display: inline-block;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ===== ONBOARDING ===== -->
+  <div class="screen active" data-screen="onboarding">
+    <div class="ob-wrap">
+      <div>
+        <h1 class="logo-big">WHOOS</h1>
+        <div class="logo-eyes">👀</div>
+        <h2 class="ob-title">친구들이 너에 대해<br/>뭐라고 했을까?</h2>
+        <p class="ob-sub">익명 칭찬만. 진짜 친구만.</p>
+      </div>
+      <div class="ob-features">
+        <div class="ob-feature">
+          <div class="ob-feature-emoji">💌</div>
+          <div class="ob-feature-text">익명 칭찬 받기<small>친구들이 너를 뽑은 이유를 봐</small></div>
+        </div>
+        <div class="ob-feature">
+          <div class="ob-feature-emoji">🔥</div>
+          <div class="ob-feature-text">매주 새로운 폴<small>4명 중 누가 가장 멋질까?</small></div>
+        </div>
+        <div class="ob-feature">
+          <div class="ob-feature-emoji">🤫</div>
+          <div class="ob-feature-text">100% 익명 보장<small>누가 너를 뽑았는진 비밀</small></div>
+        </div>
+      </div>
+      <div>
+        <button class="btn-primary" onclick="goScreen('setup')">시작하기</button>
+        <button class="btn-ghost" onclick="goScreen('login')">이미 계정이 있어요</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SETUP ===== -->
+  <div class="screen" data-screen="setup">
+    <div class="back-bar">
+      <div class="back-btn" onclick="goScreen('onboarding')">←</div>
+      <div class="back-title">프로필 만들기</div>
+    </div>
+    <div class="container">
+      <div class="setup-head">
+        <div class="setup-step">STEP 1 / 3</div>
+        <h2 class="setup-title">너는 누구야? 🙋</h2>
+        <p class="setup-sub">이름은 친구들이 너를 알아볼 수 있게 표시돼요.</p>
+      </div>
+      <div style="padding: 0 24px;">
+        <div class="input-card">
+          <span style="font-size:22px;">✨</span>
+          <input id="nameInput" placeholder="이름" maxlength="10" />
+        </div>
+        <div class="setup-step" style="margin: 18px 0 8px; color: var(--muted);">성별</div>
+        <div class="chip-row" id="genderChips">
+          <div class="chip" data-val="여자" onclick="pickChip('genderChips', this)">👩 여자</div>
+          <div class="chip" data-val="남자" onclick="pickChip('genderChips', this)">👨 남자</div>
+          <div class="chip" data-val="비공개" onclick="pickChip('genderChips', this)">🤐 비공개</div>
+        </div>
+        <div class="setup-step" style="margin: 18px 0 8px; color: var(--muted);">학년</div>
+        <div class="chip-row" id="gradeChips">
+          <div class="chip" data-val="중1" onclick="pickChip('gradeChips', this)">중1</div>
+          <div class="chip" data-val="중2" onclick="pickChip('gradeChips', this)">중2</div>
+          <div class="chip" data-val="중3" onclick="pickChip('gradeChips', this)">중3</div>
+          <div class="chip" data-val="고1" onclick="pickChip('gradeChips', this)">고1</div>
+          <div class="chip" data-val="고2" onclick="pickChip('gradeChips', this)">고2</div>
+          <div class="chip" data-val="고3" onclick="pickChip('gradeChips', this)">고3</div>
+          <div class="chip" data-val="대학생" onclick="pickChip('gradeChips', this)">대학생</div>
+          <div class="chip" data-val="기타" onclick="pickChip('gradeChips', this)">기타</div>
+        </div>
+        <div class="input-card" style="margin-top:18px;">
+          <span style="font-size:22px;">🏫</span>
+          <input id="schoolInput" placeholder="학교명 (선택)" maxlength="20" />
+        </div>
+      </div>
+    </div>
+    <div class="footer-cta">
+      <button class="btn-primary" onclick="finishSetup()">다음 →</button>
+    </div>
+  </div>
+
+  <!-- ===== FRIEND PICK ===== -->
+  <div class="screen" data-screen="friends">
+    <div class="back-bar">
+      <div class="back-btn" onclick="goScreen('setup')">←</div>
+      <div class="back-title">친구 찾기</div>
+    </div>
+    <div class="setup-head">
+      <div class="setup-step">STEP 2 / 3</div>
+      <h2 class="setup-title">친구 4명 추가하기 👯</h2>
+      <p class="setup-sub">친구가 많을수록 더 많은 칭찬을 받을 수 있어요. <span id="addedCount" style="color:var(--accent);font-weight:800;">0/4</span></p>
+    </div>
+    <div class="friend-grid" id="friendGrid"></div>
+    <div class="footer-cta" style="position:absolute; left:0; right:0; bottom:0; background:linear-gradient(180deg, transparent 0%, rgba(10,0,20,0.95) 30%);">
+      <button class="btn-primary" id="friendsNextBtn" onclick="goScreen('polls')" style="opacity:0.5;" disabled>친구 4명 추가하기</button>
+    </div>
+  </div>
+
+  <!-- ===== POLLS ===== -->
+  <div class="screen" data-screen="polls">
+    <div class="topbar">
+      <div class="topbar-logo">WHOOS 👀</div>
+      <div class="topbar-actions">
+        <div class="icon-btn" onclick="showInvite()">🔗</div>
+        <div class="icon-btn" onclick="goTab('inbox')">💌<span class="dot" id="inboxDot"></span></div>
+      </div>
+    </div>
+    <div class="poll-wrap">
+      <div id="pollHolder"></div>
+      <div class="poll-bottom">
+        <div style="display:flex; justify-content:center;">
+          <span class="pill" id="pollProgress">1 / 12</span>
+        </div>
+        <button class="skip-btn" onclick="skipPoll()">건너뛰기 →</button>
+      </div>
+    </div>
+    <div class="tabbar">
+      <button class="tab-item active" onclick="goTab('polls')">
+        <span class="tab-icon">🗳️</span>
+        폴
+      </button>
+      <button class="tab-item" onclick="goTab('inbox')">
+        <span class="tab-icon">💌</span>
+        받은함
+        <span class="tab-badge" id="inboxBadge">0</span>
+      </button>
+      <button class="tab-item" onclick="goTab('profile')">
+        <span class="tab-icon">👤</span>
+        내 프로필
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== INBOX ===== -->
+  <div class="screen" data-screen="inbox">
+    <div class="topbar">
+      <div class="topbar-logo">받은 칭찬</div>
+      <div class="topbar-actions">
+        <div class="icon-btn" onclick="showPaywall()">👑</div>
+      </div>
+    </div>
+    <div class="container" style="padding-bottom:0;">
+      <div class="inbox-hero">
+        <div class="inbox-hero-left">
+          <div class="inbox-hero-top">이번 주 받은 칭찬</div>
+          <div class="inbox-hero-num" id="weeklyCount">0</div>
+          <div class="inbox-hero-sub">누가 너를 뽑았을까? 👀</div>
+        </div>
+        <div class="inbox-hero-crown">💌</div>
+      </div>
+
+      <div class="invite-banner" onclick="showInvite()">
+        <div class="invite-gift">🎁</div>
+        <div style="flex:1;">
+          <div class="invite-text-main">친구 1명 초대 = 무료 힌트 1개</div>
+          <div class="invite-text-sub">5명 초대하면 누가 뽑았는지 확인 가능!</div>
+        </div>
+        <div style="font-size:22px;">→</div>
+      </div>
+
+      <div class="section-label">📬 받은 칭찬</div>
+      <div class="inbox-list" id="inboxList"></div>
+    </div>
+    <div class="tabbar">
+      <button class="tab-item" onclick="goTab('polls')">
+        <span class="tab-icon">🗳️</span>
+        폴
+      </button>
+      <button class="tab-item active" onclick="goTab('inbox')">
+        <span class="tab-icon">💌</span>
+        받은함
+        <span class="tab-badge" id="inboxBadge2">0</span>
+      </button>
+      <button class="tab-item" onclick="goTab('profile')">
+        <span class="tab-icon">👤</span>
+        내 프로필
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== PROFILE ===== -->
+  <div class="screen" data-screen="profile">
+    <div class="topbar">
+      <div class="topbar-logo">프로필</div>
+      <div class="topbar-actions">
+        <div class="icon-btn" onclick="showInvite()">⚙️</div>
+      </div>
+    </div>
+    <div class="container" style="padding-bottom:0;">
+      <div class="profile-hero">
+        <div class="profile-avatar" id="profileAvatar">?</div>
+        <div class="profile-name" id="profileName">나</div>
+        <div class="profile-meta" id="profileMeta">고1 · 여자</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-num" id="statReceived">0</div>
+          <div class="stat-label">받은 칭찬</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="statSent">0</div>
+          <div class="stat-label">보낸 칭찬</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="statStreak">1</div>
+          <div class="stat-label">연속일</div>
+        </div>
+      </div>
+      <div class="pro-banner" onclick="showPaywall()">
+        <div class="pro-crown">👑</div>
+        <div>
+          <div class="pro-text-main">WHOOS+ 시작하기</div>
+          <div class="pro-text-sub">누가 너를 뽑았는지 모두 보기</div>
+        </div>
+        <div class="pro-arrow">→</div>
+      </div>
+      <div class="settings-list">
+        <div class="settings-item" onclick="showInvite()">
+          <span class="settings-emoji">🔗</span>
+          친구 초대하기
+          <span class="settings-arrow">→</span>
+        </div>
+        <div class="settings-item" onclick="toast('알림 설정 열림')">
+          <span class="settings-emoji">🔔</span>
+          알림 설정
+          <span class="settings-arrow">→</span>
+        </div>
+        <div class="settings-item" onclick="toast('개인정보 처리방침')">
+          <span class="settings-emoji">🛡️</span>
+          개인정보 처리방침
+          <span class="settings-arrow">→</span>
+        </div>
+        <div class="settings-item" onclick="resetApp()">
+          <span class="settings-emoji">🗑️</span>
+          데이터 초기화
+          <span class="settings-arrow">→</span>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <button class="tab-item" onclick="goTab('polls')">
+        <span class="tab-icon">🗳️</span>
+        폴
+      </button>
+      <button class="tab-item" onclick="goTab('inbox')">
+        <span class="tab-icon">💌</span>
+        받은함
+        <span class="tab-badge" id="inboxBadge3">0</span>
+      </button>
+      <button class="tab-item active" onclick="goTab('profile')">
+        <span class="tab-icon">👤</span>
+        내 프로필
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== REVEAL ===== -->
+  <div class="screen" data-screen="reveal">
+    <div class="back-bar">
+      <div class="back-btn" onclick="goTab('inbox')">←</div>
+      <div class="back-title">누가 뽑았을까?</div>
+    </div>
+    <div class="reveal-wrap" id="revealWrap"></div>
+  </div>
+
+  <!-- ===== LOGIN ===== -->
+  <div class="screen" data-screen="login">
+    <div class="back-bar">
+      <div class="back-btn" onclick="goScreen('onboarding')">←</div>
+    </div>
+    <div class="empty">
+      <div class="empty-emoji">🔐</div>
+      <h3 class="empty-title">로그인 준비중</h3>
+      <p class="empty-sub">실제 출시 버전에선 카카오/구글/애플 로그인 지원 예정.<br/>지금은 "시작하기"로 데모를 체험해보세요.</p>
+      <button class="btn-primary" style="margin-top:24px; max-width:260px;" onclick="goScreen('onboarding')">메인으로</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAYWALL MODAL ===== -->
+<div class="modal-overlay" id="paywallOverlay" onclick="if(event.target===this)hidePaywall()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="paywall-emoji">👑</div>
+    <h2 class="paywall-title">WHOOS<span>+</span></h2>
+    <p class="paywall-sub">누가 너를 뽑았는지 다 보자</p>
+    <div class="paywall-feats">
+      <div class="paywall-feat">
+        <span class="paywall-feat-emoji">👀</span>
+        <div class="paywall-feat-text">누가 뽑았는지 이름 보기<small>지금까지 모든 칭찬 다 공개</small></div>
+      </div>
+      <div class="paywall-feat">
+        <span class="paywall-feat-emoji">🔥</span>
+        <div class="paywall-feat-text">무제한 폴 + 새 폴 먼저<small>친구들 답변 5분 빨리 받기</small></div>
+      </div>
+      <div class="paywall-feat">
+        <span class="paywall-feat-emoji">🎭</span>
+        <div class="paywall-feat-text">힌트 2배 (성별+학년+학교)<small>거의 다 알아낼 수 있어</small></div>
+      </div>
+    </div>
+    <div class="paywall-plans">
+      <div class="paywall-plan" data-plan="week" onclick="pickPlan(this)">
+        <div class="paywall-plan-name">주간</div>
+        <div class="paywall-plan-price">₩6,900</div>
+        <div class="paywall-plan-period">/ 주</div>
+      </div>
+      <div class="paywall-plan selected" data-plan="year" onclick="pickPlan(this)">
+        <div class="paywall-plan-tag">최고 인기 · 80%↓</div>
+        <div class="paywall-plan-name">연간</div>
+        <div class="paywall-plan-price">₩69,000</div>
+        <div class="paywall-plan-period">/ 년 (₩1,330/주)</div>
+      </div>
+    </div>
+    <button class="paywall-btn" onclick="fakeBuy()">3일 무료 체험 시작 →</button>
+    <button class="paywall-alt" onclick="hidePaywall()">됐어, 그냥 광고 볼래</button>
+    <p class="paywall-foot">3일 후 자동 결제. 언제든 해지 가능.<br/>App Store / Play Store 결제.</p>
+  </div>
+</div>
+
+<!-- ===== INVITE MODAL ===== -->
+<div class="modal-overlay" id="inviteOverlay" onclick="if(event.target===this)hideInvite()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="paywall-emoji">🔗</div>
+    <h2 class="paywall-title">친구 초대하기</h2>
+    <p class="paywall-sub">친구가 많을수록 더 많은 칭찬을 받아요</p>
+    <div class="paywall-feats">
+      <div class="paywall-feat">
+        <span class="paywall-feat-emoji">🎁</span>
+        <div class="paywall-feat-text">친구 1명 = 무료 힌트 1개<small>성별 또는 학년 알 수 있음</small></div>
+      </div>
+      <div class="paywall-feat">
+        <span class="paywall-feat-emoji">🔓</span>
+        <div class="paywall-feat-text">친구 5명 = 이름 공개 1회<small>누가 뽑았는지 진짜 이름 보기</small></div>
+      </div>
+    </div>
+    <button class="paywall-btn" onclick="shareLink()">💬 카카오톡으로 초대하기</button>
+    <button class="btn-secondary" style="margin-top:10px;" onclick="copyLink()">🔗 초대 링크 복사</button>
+    <button class="paywall-alt" onclick="hideInvite()">나중에</button>
+  </div>
+</div>
+
+<div class="toast" id="toast">완료!</div>
+
+<script>
+/* =====================================================
+   WHOOS — 익명 친구 투표 앱 프로토타입
+   ===================================================== */
+
+const STATE = {
+  user: null,        // { name, gender, grade, school }
+  friends: [],       // [{id, name, emoji, grade, gender, school}]
+  myFriendIds: [],   // ids of added friends
+  pollIndex: 0,      // current poll index
+  polls: [],         // all polls
+  inbox: [],         // received compliments
+  sentCount: 0,
+  revealed: new Set(), // inbox ids revealed
+  plan: 'year',
+};
+
+const STORAGE_KEY = 'whoos_v1';
+
+/* ---------- PERSISTENCE ---------- */
+function save() {
+  const out = {
+    ...STATE,
+    revealed: Array.from(STATE.revealed),
+  };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(out)); } catch(e) {}
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    Object.assign(STATE, data);
+    STATE.revealed = new Set(data.revealed || []);
+    return !!STATE.user;
+  } catch(e) { return false; }
+}
+
+/* ---------- FAKE DATA ---------- */
+const FAKE_FRIENDS = [
+  { name: '지호', emoji: '🦊', gender: '남자', grade: '고1', school: '한빛고' },
+  { name: '서연', emoji: '🐰', gender: '여자', grade: '고1', school: '한빛고' },
+  { name: '민준', emoji: '🐻', gender: '남자', grade: '고2', school: '한빛고' },
+  { name: '하은', emoji: '🐼', gender: '여자', grade: '고1', school: '한빛고' },
+  { name: '도윤', emoji: '🦁', gender: '남자', grade: '고1', school: '한빛고' },
+  { name: '수아', emoji: '🐨', gender: '여자', grade: '고2', school: '한빛고' },
+  { name: '예준', emoji: '🐯', gender: '남자', grade: '고1', school: '한빛고' },
+  { name: '소율', emoji: '🦄', gender: '여자', grade: '고1', school: '한빛고' },
+  { name: '시우', emoji: '🐶', gender: '남자', grade: '고2', school: '한빛고' },
+  { name: '나윤', emoji: '🐱', gender: '여자', grade: '고1', school: '한빛고' },
+  { name: '주원', emoji: '🐵', gender: '남자', grade: '고1', school: '한빛고' },
+  { name: '채원', emoji: '🦋', gender: '여자', grade: '고2', school: '한빛고' },
+];
+
+const POLL_PROMPTS = [
+  { emoji: '😍', q: '가장 잘생긴/예쁜 사람은?' },
+  { emoji: '🤣', q: '같이 있으면 제일 웃긴 사람은?' },
+  { emoji: '🧠', q: '가장 똑똑할 것 같은 사람은?' },
+  { emoji: '💌', q: '몰래 좋아하면 좋겠는 사람은?' },
+  { emoji: '🔥', q: '미래에 가장 성공할 사람은?' },
+  { emoji: '😎', q: '제일 스타일 좋은 사람은?' },
+  { emoji: '🎤', q: '노래방에서 1등 할 사람은?' },
+  { emoji: '💪', q: '제일 든든한 사람은?' },
+  { emoji: '🤫', q: '비밀 다 말하고 싶은 사람은?' },
+  { emoji: '🌟', q: '제일 좋은 첫인상이었던 사람은?' },
+  { emoji: '🍕', q: '오늘 저녁 같이 먹고 싶은 사람은?' },
+  { emoji: '😇', q: '천사같이 착한 사람은?' },
+];
+
+/* ---------- INIT ---------- */
+function init() {
+  const had = load();
+  if (had) {
+    // ensure polls + inbox exist
+    if (!STATE.polls.length) buildPolls();
+    if (!STATE.inbox.length) buildInbox();
+    paintProfile();
+    paintInbox();
+    paintPoll();
+    paintProgress();
+    paintTabBadges();
+    goScreen('polls');
+  } else {
+    paintFriendGrid();
+  }
+}
+
+/* ---------- NAVIGATION ---------- */
+function goScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('active');
+    s.classList.remove('exit-left');
+  });
+  const target = document.querySelector(`.screen[data-screen="${name}"]`);
+  if (target) target.classList.add('active');
+}
+function goTab(name) {
+  goScreen(name);
+  if (name === 'polls') paintPoll();
+  if (name === 'inbox') paintInbox();
+  if (name === 'profile') paintProfile();
+}
+
+/* ---------- SETUP ---------- */
+function pickChip(groupId, el) {
+  const group = document.getElementById(groupId);
+  group.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function finishSetup() {
+  const name = document.getElementById('nameInput').value.trim();
+  const gender = document.querySelector('#genderChips .chip.selected')?.dataset.val;
+  const grade = document.querySelector('#gradeChips .chip.selected')?.dataset.val;
+  const school = document.getElementById('schoolInput').value.trim();
+  if (!name) { toast('이름을 입력해주세요'); return; }
+  if (!gender) { toast('성별을 선택해주세요'); return; }
+  if (!grade) { toast('학년을 선택해주세요'); return; }
+  STATE.user = { name, gender, grade, school };
+  save();
+  paintFriendGrid();
+  goScreen('friends');
+}
+
+/* ---------- FRIENDS ---------- */
+function paintFriendGrid() {
+  const grid = document.getElementById('friendGrid');
+  grid.innerHTML = '';
+  FAKE_FRIENDS.forEach((f, idx) => {
+    const id = 'f_' + idx;
+    const added = STATE.myFriendIds.includes(id);
+    const card = document.createElement('div');
+    card.className = 'friend-pick' + (added ? ' added' : '');
+    card.onclick = () => toggleFriend(id);
+    card.innerHTML = `
+      <div class="poll-avatar">${f.emoji}</div>
+      <div class="friend-pick-name">${f.name}</div>
+      <div class="friend-pick-school">${f.grade} · ${f.school}</div>
+    `;
+    grid.appendChild(card);
+  });
+  updateFriendCounter();
+}
+function toggleFriend(id) {
+  const i = STATE.myFriendIds.indexOf(id);
+  if (i >= 0) STATE.myFriendIds.splice(i, 1);
+  else STATE.myFriendIds.push(id);
+  paintFriendGrid();
+}
+function updateFriendCounter() {
+  const c = STATE.myFriendIds.length;
+  const counter = document.getElementById('addedCount');
+  if (counter) counter.textContent = c + '/4';
+  const btn = document.getElementById('friendsNextBtn');
+  if (btn) {
+    if (c >= 4) {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.textContent = '폴 시작하기 🔥';
+      btn.onclick = startPolls;
+    } else {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.textContent = `${4 - c}명 더 추가하기`;
+    }
+  }
+}
+function startPolls() {
+  buildPolls();
+  buildInbox();
+  save();
+  paintProfile();
+  paintPoll();
+  paintInbox();
+  paintTabBadges();
+  goScreen('polls');
+}
+
+/* ---------- POLLS ---------- */
+function buildPolls() {
+  STATE.polls = POLL_PROMPTS.map((p, i) => {
+    const choices = shuffle(STATE.myFriendIds.slice()).slice(0, 4);
+    return { id: 'p_' + i, ...p, choices, answered: null };
+  });
+  STATE.pollIndex = 0;
+}
+function paintPoll() {
+  const holder = document.getElementById('pollHolder');
+  if (!holder) return;
+  if (STATE.pollIndex >= STATE.polls.length) {
+    holder.innerHTML = `
+      <div class="empty" style="padding:60px 32px;">
+        <div class="empty-emoji">🎉</div>
+        <h3 class="empty-title">오늘 폴 다 끝!</h3>
+        <p class="empty-sub">내일 새로운 폴이 도착해요.<br/>지금까지 ${STATE.sentCount}명에게 칭찬을 보냈어요 💌</p>
+        <button class="btn-primary" style="margin-top:24px; max-width:260px;" onclick="goTab('inbox')">받은 칭찬 보러가기 →</button>
+      </div>`;
+    paintProgress();
+    return;
+  }
+  const poll = STATE.polls[STATE.pollIndex];
+  const friendMap = friendLookup();
+  holder.innerHTML = `
+    <div class="poll-card">
+      <div class="poll-emoji-row">
+        <div class="poll-emoji">${poll.emoji}</div>
+        <div class="poll-counter">${STATE.pollIndex + 1}/${STATE.polls.length}</div>
+      </div>
+      <h2 class="poll-question">${poll.q}</h2>
+    </div>
+    <div class="poll-options">
+      ${poll.choices.map(fid => {
+        const f = friendMap[fid];
+        return `<div class="poll-option" onclick="answerPoll('${fid}')">
+          <div class="poll-avatar">${f.emoji}</div>
+          <div class="poll-name">${f.name}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+  paintProgress();
+}
+function answerPoll(fid) {
+  const poll = STATE.polls[STATE.pollIndex];
+  poll.answered = fid;
+  STATE.sentCount++;
+  // also simulate that someone picks YOU in return on some polls
+  if (Math.random() < 0.65) {
+    addInboxFromPoll(poll);
+  }
+  save();
+  // visual feedback
+  document.querySelectorAll('.poll-option').forEach(el => {
+    if (el.querySelector('.poll-name')?.textContent === friendLookup()[fid].name) {
+      el.classList.add('picked');
+    }
+  });
+  setTimeout(() => {
+    STATE.pollIndex++;
+    paintPoll();
+    paintInbox();
+    paintProfile();
+    paintTabBadges();
+  }, 450);
+}
+function skipPoll() {
+  STATE.pollIndex++;
+  paintPoll();
+}
+function paintProgress() {
+  const el = document.getElementById('pollProgress');
+  if (!el) return;
+  el.textContent = `${Math.min(STATE.pollIndex + 1, STATE.polls.length)} / ${STATE.polls.length}`;
+}
+
+/* ---------- INBOX ---------- */
+function buildInbox() {
+  // simulate 3 initial received compliments
+  STATE.inbox = [];
+  const seed = shuffle(POLL_PROMPTS.slice()).slice(0, 3);
+  seed.forEach((p, i) => {
+    const fromId = pickRandom(STATE.myFriendIds);
+    STATE.inbox.unshift({
+      id: 'i_' + Date.now() + '_' + i,
+      emoji: p.emoji,
+      question: p.q,
+      fromId,
+      time: Date.now() - (i + 1) * 1000 * 60 * (5 + Math.random() * 60),
+      read: false,
+    });
+  });
+}
+function addInboxFromPoll(poll) {
+  const fromId = pickRandom(STATE.myFriendIds);
+  STATE.inbox.unshift({
+    id: 'i_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    emoji: poll.emoji,
+    question: poll.q,
+    fromId,
+    time: Date.now(),
+    read: false,
+  });
+}
+function paintInbox() {
+  const list = document.getElementById('inboxList');
+  if (!list) return;
+  const weeklyEl = document.getElementById('weeklyCount');
+  if (weeklyEl) weeklyEl.textContent = STATE.inbox.length;
+  if (!STATE.inbox.length) {
+    list.innerHTML = `<div class="empty" style="padding:40px 0;">
+      <div class="empty-emoji">📭</div>
+      <h3 class="empty-title">아직 받은 칭찬이 없어요</h3>
+      <p class="empty-sub">폴에 답하면 친구들도 너에게 칭찬을 보내요</p>
+    </div>`;
+    return;
+  }
+  const friendMap = friendLookup();
+  list.innerHTML = STATE.inbox.map(item => {
+    const friend = friendMap[item.fromId];
+    const revealed = STATE.revealed.has(item.id);
+    const clue = revealed
+      ? `${friend.name}님이 보냈어요`
+      : `${friend.gender} · ${friend.grade}이 너를 뽑았어`;
+    return `<div class="inbox-item ${item.read ? '' : 'unread'}" onclick="openReveal('${item.id}')">
+      <div class="inbox-avatar" style="${revealed ? '' : 'filter:blur(8px) saturate(1.4);'}">${friend.emoji}</div>
+      <div class="inbox-content">
+        <p class="inbox-clue">${item.emoji} ${clue}</p>
+        <p class="inbox-question">"${item.question}"</p>
+      </div>
+      ${revealed ? `<div class="inbox-time">${timeAgo(item.time)}</div>` : '<button class="reveal-btn">👀 보기</button>'}
+    </div>`;
+  }).join('');
+}
+function openReveal(id) {
+  const item = STATE.inbox.find(x => x.id === id);
+  if (!item) return;
+  item.read = true;
+  if (STATE.revealed.has(id)) {
+    // already revealed -> show full
+    showReveal(item, true);
+  } else {
+    showPaywall(id);
+  }
+  save();
+  paintInbox();
+}
+function showReveal(item, full) {
+  const wrap = document.getElementById('revealWrap');
+  const friend = friendLookup()[item.fromId];
+  wrap.innerHTML = `
+    <div class="reveal-emoji-big">${item.emoji}</div>
+    <h2 class="reveal-question">"${item.question}"</h2>
+    <div class="reveal-name-card">
+      <div class="reveal-from-label">뽑은 사람</div>
+      <div class="reveal-name">${friend.name}</div>
+      <div class="reveal-meta">${friend.grade} · ${friend.gender} · ${friend.school}</div>
+    </div>
+    <p class="reveal-foot">${timeAgo(item.time)} · 익명 처리됨</p>
+    <button class="btn-primary" style="max-width:260px; margin-top:12px;" onclick="goTab('inbox')">받은함으로</button>
+  `;
+  goScreen('reveal');
+}
+
+/* ---------- PAYWALL ---------- */
+let pendingRevealId = null;
+function showPaywall(itemId) {
+  pendingRevealId = itemId || null;
+  document.getElementById('paywallOverlay').classList.add('show');
+}
+function hidePaywall() {
+  document.getElementById('paywallOverlay').classList.remove('show');
+  pendingRevealId = null;
+}
+function pickPlan(el) {
+  document.querySelectorAll('.paywall-plan').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+  STATE.plan = el.dataset.plan;
+}
+function fakeBuy() {
+  hidePaywall();
+  toast(STATE.plan === 'year' ? '🎉 WHOOS+ 연간 시작! (데모)' : '🎉 WHOOS+ 주간 시작! (데모)');
+  // reveal all
+  STATE.inbox.forEach(item => STATE.revealed.add(item.id));
+  if (pendingRevealId) {
+    const item = STATE.inbox.find(x => x.id === pendingRevealId);
+    if (item) setTimeout(() => showReveal(item, true), 400);
+  }
+  save();
+  paintInbox();
+}
+
+/* ---------- INVITE ---------- */
+function showInvite() {
+  document.getElementById('inviteOverlay').classList.add('show');
+}
+function hideInvite() {
+  document.getElementById('inviteOverlay').classList.remove('show');
+}
+function shareLink() {
+  const text = `${STATE.user?.name || '친구'}가 WHOOS에서 너를 뽑았어 👀 누구일까? https://whoos.app/${(STATE.user?.name||'me')}`;
+  if (navigator.share) {
+    navigator.share({ title: 'WHOOS', text }).catch(()=>{});
+  } else {
+    copyLink();
+  }
+}
+function copyLink() {
+  const link = `https://whoos.app/${encodeURIComponent(STATE.user?.name || 'me')}`;
+  navigator.clipboard?.writeText(link);
+  toast('🔗 초대 링크가 복사됐어요!');
+  hideInvite();
+}
+
+/* ---------- PROFILE ---------- */
+function paintProfile() {
+  if (!STATE.user) return;
+  const av = document.getElementById('profileAvatar');
+  if (av) av.textContent = (STATE.user.name || '?')[0];
+  const nm = document.getElementById('profileName');
+  if (nm) nm.textContent = STATE.user.name;
+  const meta = document.getElementById('profileMeta');
+  if (meta) meta.textContent = `${STATE.user.grade} · ${STATE.user.gender}${STATE.user.school ? ' · ' + STATE.user.school : ''}`;
+  document.getElementById('statReceived').textContent = STATE.inbox.length;
+  document.getElementById('statSent').textContent = STATE.sentCount;
+  document.getElementById('statStreak').textContent = '1';
+}
+function paintTabBadges() {
+  const unread = STATE.inbox.filter(i => !i.read).length;
+  ['inboxBadge', 'inboxBadge2', 'inboxBadge3'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (unread > 0) {
+      el.style.display = 'inline-block';
+      el.textContent = unread;
+    } else {
+      el.style.display = 'none';
+    }
+  });
+}
+
+/* ---------- UTILITIES ---------- */
+function friendLookup() {
+  const map = {};
+  STATE.myFriendIds.forEach(id => {
+    const idx = parseInt(id.split('_')[1], 10);
+    map[id] = FAKE_FRIENDS[idx];
+  });
+  return map;
+}
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function timeAgo(ts) {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return '방금';
+  if (diff < 3600) return `${Math.floor(diff/60)}분 전`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}시간 전`;
+  return `${Math.floor(diff/86400)}일 전`;
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(() => t.classList.remove('show'), 1800);
+}
+function resetApp() {
+  if (!confirm('정말 모든 데이터를 초기화할까요?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}
+
+init();
+</script>
+</body>
+</html>
