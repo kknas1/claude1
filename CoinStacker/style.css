@@ -1,0 +1,236 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-top: #0b1530;
+  --bg-bot: #1b2a5e;
+  --gold-1: #ffe27a;
+  --gold-2: #e8a51b;
+  --gold-3: #8a5a0a;
+  --panel: rgba(15, 23, 47, 0.9);
+  --accent: #ffcc4d;
+  --danger: #ff5566;
+  --text: #f3f3f8;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+html, body {
+  height: 100%;
+  background: radial-gradient(circle at 50% 0%, #1b2f6a 0%, #0a0f24 70%);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+               "Noto Sans KR", "Malgun Gothic", sans-serif;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 12px;
+}
+
+.game-wrap {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hud {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: var(--shadow);
+}
+
+.hud-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.hud-label {
+  color: #9aa3c2;
+  font-size: 12px;
+}
+
+.hud-value {
+  color: var(--gold-1);
+  font-weight: 800;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
+}
+
+.hud-unit {
+  color: #9aa3c2;
+  font-size: 12px;
+}
+
+.stage {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  background: linear-gradient(180deg, var(--bg-top), var(--bg-bot));
+  aspect-ratio: 420 / 640;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(5, 8, 22, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 10;
+  transition: opacity 0.25s ease;
+}
+
+.overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.panel {
+  width: 86%;
+  max-width: 360px;
+  background: linear-gradient(180deg, #1b2553, #0e1638);
+  border: 1px solid rgba(255, 204, 77, 0.25);
+  border-radius: 18px;
+  padding: 24px 22px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.panel h1 {
+  font-size: 28px;
+  margin-bottom: 8px;
+  color: var(--gold-1);
+  text-shadow: 0 2px 0 var(--gold-3);
+}
+
+.panel .lead {
+  color: #cfd5ee;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+.how {
+  list-style: none;
+  text-align: left;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  line-height: 1.7;
+  color: #d8dcef;
+}
+
+.how b {
+  color: var(--accent);
+}
+
+.btn {
+  display: inline-block;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(180deg, #ffd766, #d99517);
+  color: #2b1700;
+  font-weight: 800;
+  font-size: 18px;
+  padding: 12px 26px;
+  border-radius: 999px;
+  box-shadow: 0 4px 0 #8a5a0a, 0 8px 18px rgba(0, 0, 0, 0.35);
+  transition: transform 0.06s ease;
+  font-family: inherit;
+}
+
+.btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #8a5a0a, 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.result {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.result b {
+  color: var(--gold-1);
+  font-size: 22px;
+}
+
+.record {
+  color: var(--accent);
+  font-weight: 800;
+  margin-bottom: 14px;
+  animation: pop 0.6s ease;
+}
+
+.hidden { display: none; }
+
+@keyframes pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.ctrl {
+  flex: 1;
+  border: none;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  padding: 16px 0;
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: transform 0.05s ease, background 0.15s ease;
+  font-family: inherit;
+}
+
+.ctrl:active {
+  transform: translateY(2px);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ctrl.drop {
+  flex: 1.4;
+  background: linear-gradient(180deg, #ffd766, #d99517);
+  color: #2b1700;
+  letter-spacing: 0.1em;
+  font-size: 16px;
+}
+
+@media (min-width: 520px) {
+  .ctrl { display: none; }
+}
