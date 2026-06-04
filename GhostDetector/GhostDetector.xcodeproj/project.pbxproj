@@ -1,0 +1,332 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A20001 /* GhostDetectorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20001; };
+		A20002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20002; };
+		A20003 /* SensorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20003; };
+		A20004 /* DepthScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20004; };
+		A20005 /* GhostDetectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20005; };
+		A20006 /* CameraPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20006; };
+		A20007 /* ARCameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20007; };
+		A20008 /* EMFMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20008; };
+		A20009 /* GhostRadarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20009; };
+		A20010 /* GhostDetectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20010; };
+		A20011 /* DetectionLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20011; };
+		A20012 /* InfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20012; };
+		A20013 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B20013; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B20001 /* GhostDetectorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostDetectorApp.swift; sourceTree = "<group>"; };
+		B20002 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		B20003 /* SensorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorManager.swift; sourceTree = "<group>"; };
+		B20004 /* DepthScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthScanner.swift; sourceTree = "<group>"; };
+		B20005 /* GhostDetectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostDetectionViewModel.swift; sourceTree = "<group>"; };
+		B20006 /* CameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreview.swift; sourceTree = "<group>"; };
+		B20007 /* ARCameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCameraView.swift; sourceTree = "<group>"; };
+		B20008 /* EMFMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EMFMeterView.swift; sourceTree = "<group>"; };
+		B20009 /* GhostRadarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostRadarView.swift; sourceTree = "<group>"; };
+		B20010 /* GhostDetectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostDetectorView.swift; sourceTree = "<group>"; };
+		B20011 /* DetectionLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionLogView.swift; sourceTree = "<group>"; };
+		B20012 /* InfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoView.swift; sourceTree = "<group>"; };
+		B20013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B20014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B20015 /* GhostDetector.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GhostDetector.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20016 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F20001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		G20001 = {
+			isa = PBXGroup;
+			children = (
+				G20002 /* GhostDetector */,
+				G20004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		G20002 /* GhostDetector */ = {
+			isa = PBXGroup;
+			children = (
+				B20001 /* GhostDetectorApp.swift */,
+				B20002 /* Models.swift */,
+				B20003 /* SensorManager.swift */,
+				B20004 /* DepthScanner.swift */,
+				B20005 /* GhostDetectionViewModel.swift */,
+				B20006 /* CameraPreview.swift */,
+				B20007 /* ARCameraView.swift */,
+				B20008 /* EMFMeterView.swift */,
+				B20009 /* GhostRadarView.swift */,
+				B20010 /* GhostDetectorView.swift */,
+				B20011 /* DetectionLogView.swift */,
+				B20012 /* InfoView.swift */,
+				B20013 /* Assets.xcassets */,
+				B20014 /* Info.plist */,
+				G20003 /* Preview Content */,
+			);
+			path = GhostDetector;
+			sourceTree = "<group>";
+		};
+		G20003 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				B20016 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		G20004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B20015 /* GhostDetector.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		T20001 /* GhostDetector */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C20003;
+			buildPhases = (
+				S20001 /* Sources */,
+				F20001 /* Frameworks */,
+				R20001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GhostDetector;
+			productName = GhostDetector;
+			productReference = B20015;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		P20001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					T20001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = C20001;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ko;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				ko,
+				Base,
+			);
+			mainGroup = G20001;
+			productRefGroup = G20004;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				T20001,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		R20001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20013 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		S20001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20001 /* GhostDetectorApp.swift in Sources */,
+				A20002 /* Models.swift in Sources */,
+				A20003 /* SensorManager.swift in Sources */,
+				A20004 /* DepthScanner.swift in Sources */,
+				A20005 /* GhostDetectionViewModel.swift in Sources */,
+				A20006 /* CameraPreview.swift in Sources */,
+				A20007 /* ARCameraView.swift in Sources */,
+				A20008 /* EMFMeterView.swift in Sources */,
+				A20009 /* GhostRadarView.swift in Sources */,
+				A20010 /* GhostDetectorView.swift in Sources */,
+				A20011 /* DetectionLogView.swift in Sources */,
+				A20012 /* InfoView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		C20011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		C20012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		C20021 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"GhostDetector/Preview Content\"";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GhostDetector/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "심령 활동을 화면에 합성해 보여주기 위해 카메라가 필요합니다";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "음압(EVP) 변화를 감지하기 위해 마이크가 필요합니다";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "레이더의 방향을 표시하기 위해 나침반이 필요합니다";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ghostdetector.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		C20022 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"GhostDetector/Preview Content\"";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GhostDetector/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "심령 활동을 화면에 합성해 보여주기 위해 카메라가 필요합니다";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "음압(EVP) 변화를 감지하기 위해 마이크가 필요합니다";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "레이더의 방향을 표시하기 위해 나침반이 필요합니다";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ghostdetector.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C20001 /* Build configuration list for PBXProject "GhostDetector" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C20011,
+				C20012,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C20003 /* Build configuration list for PBXNativeTarget "GhostDetector" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C20021,
+				C20022,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = P20001;
+}
