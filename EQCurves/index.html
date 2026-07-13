@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The EQ Curves of Legendary Pedals</title>
+<style>
+  :root{
+    --bg:#050505;
+    --panel:#0b0b0b;
+    --grid-line:#4a4a4a;
+    --ink:#f3efe4;
+    --ink-dim:#bdb8ab;
+    --gold:#f2c437;
+    --display:Impact,'Haettenschweiler','Arial Narrow',system-ui,sans-serif;
+    --body:Arial,'Helvetica Neue',Helvetica,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{color-scheme:dark}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--body);
+    -webkit-font-smoothing:antialiased;
+    padding:0 0 60px;
+  }
+
+  /* ---------- helper toolbar (poster 외부) ---------- */
+  .toolbar{
+    max-width:1560px;margin:0 auto;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+    padding:14px 18px;
+    font-size:13.5px;color:var(--ink-dim);
+  }
+  .toolbar b{color:var(--gold);font-weight:700}
+  .toolbar .hint{line-height:1.5}
+  .toolbar button{
+    background:none;border:1px solid #55503f;color:var(--ink-dim);
+    font:inherit;font-size:12.5px;padding:7px 14px;border-radius:6px;cursor:pointer;
+    white-space:nowrap;
+  }
+  .toolbar button:hover{border-color:var(--gold);color:var(--gold)}
+  .toolbar button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+  /* ---------- poster ---------- */
+  #poster{
+    max-width:1560px;margin:0 auto;
+    display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:3px;background:var(--grid-line);border:3px solid var(--grid-line);
+  }
+  .panel{
+    position:relative;
+    background:radial-gradient(130% 95% at 50% 0%,#171717 0%,#0c0c0c 55%,#070707 100%);
+    padding:clamp(16px,1.6vw,26px) clamp(14px,1.5vw,24px) clamp(14px,1.4vw,22px);
+    display:flex;flex-direction:column;min-width:0;
+  }
+
+  .badge{
+    position:absolute;top:12px;left:12px;z-index:3;
+    width:36px;height:36px;border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    transform:rotate(-4deg);
+    background:var(--ac,var(--gold));
+    color:#0a0a0a;font-family:var(--display);font-size:23px;font-weight:700;
+    box-shadow:0 3px 8px rgba(0,0,0,.6);
+  }
+
+  /* ---------- pedal panels ---------- */
+  .head{display:flex;align-items:stretch;gap:10px;margin-bottom:8px;min-height:158px}
+  .titlebox{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding-top:20px;min-width:0}
+  .name{
+    font-family:var(--display);font-weight:700;
+    font-size:clamp(38px,3.2vw,52px);line-height:.95;
+    letter-spacing:.02em;color:var(--ac);white-space:nowrap;
+    text-shadow:0 0 22px var(--ac-glow,rgba(255,255,255,.2));
+  }
+  .name.sz-s{font-size:clamp(27px,2.5vw,42px)}
+  .name.grad-silver{
+    background:linear-gradient(180deg,#f5f5f5 0%,#c9c9c9 45%,#7e7e7e 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:none;
+  }
+  .subname{
+    margin-top:8px;font-size:clamp(12px,1vw,15px);font-weight:700;
+    letter-spacing:.22em;color:#d9d4c8;text-transform:uppercase;
+  }
+  .subname.pi{
+    font-family:Georgia,'Times New Roman',serif;
+    font-size:clamp(34px,2.6vw,44px);letter-spacing:0;line-height:1;
+    color:var(--ac);margin-top:2px;text-transform:none;font-weight:700;
+  }
+
+  /* ---------- uploadable pedal image ---------- */
+  .pedal-media{
+    position:relative;width:41%;max-width:185px;min-width:120px;
+    aspect-ratio:4/5;flex-shrink:0;align-self:center;
+    cursor:pointer;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .pedal-media .ph,
+  .pedal-media img{
+    position:absolute;inset:0;width:100%;height:100%;
+    object-fit:contain;
+    filter:drop-shadow(0 10px 16px rgba(0,0,0,.65));
+  }
+  .pedal-media .ph svg{width:100%;height:100%;display:block}
+  .pedal-media .cam{
+    position:absolute;left:50%;bottom:4px;transform:translateX(-50%);
+    font-size:10.5px;line-height:1;color:#e8e2d2;background:rgba(0,0,0,.72);
+    border:1px solid rgba(255,255,255,.22);border-radius:20px;
+    padding:4px 9px;white-space:nowrap;pointer-events:none;
+    opacity:.85;transition:opacity .15s;
+  }
+  .pedal-media.has-photo .cam{opacity:0}
+  .pedal-media:hover .cam,.pedal-media:focus-visible .cam{opacity:1}
+  .pedal-media:hover{outline:2px dashed rgba(255,255,255,.35);outline-offset:3px}
+  .pedal-media:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+  .pedal-media.dragover{outline:2px dashed var(--gold);outline-offset:3px;background:rgba(242,196,55,.08)}
+  .pedal-media .reset{
+    position:absolute;top:2px;right:2px;z-index:4;
+    width:24px;height:24px;border-radius:50%;
+    background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.3);
+    color:#eee;font-size:13px;line-height:1;cursor:pointer;
+    display:none;align-items:center;justify-content:center;
+  }
+  .pedal-media.has-photo:hover .reset,
+  .pedal-media.has-photo:focus-within .reset{display:flex}
+  .pedal-media .reset:hover{border-color:var(--gold);color:var(--gold)}
+
+  /* ---------- graph ---------- */
+  .graph svg{width:100%;height:auto;display:block}
+
+  /* ---------- bass/mid/treble columns ---------- */
+  .cols{
+    display:grid;grid-template-columns:1fr 1fr 1fr;
+    margin:12px 0 12px;padding-top:2px;
+  }
+  .col{
+    padding:4px 8px;text-align:center;min-width:0;
+    border-left:1px solid rgba(255,255,255,.16);
+  }
+  .col:first-child{border-left:none}
+  .col h3{
+    font-family:var(--display);font-weight:700;font-size:clamp(15px,1.2vw,19px);
+    letter-spacing:.08em;color:var(--ac);margin-bottom:5px;
+  }
+  .col .s{font-size:clamp(12px,.95vw,14px);font-weight:700;color:#efeadf;line-height:1.3}
+  .col .d{font-size:clamp(11.5px,.9vw,13px);color:var(--ink-dim);line-height:1.35;margin-top:2px}
+
+  /* ---------- tip pill ---------- */
+  .tip{
+    margin-top:auto;
+    display:flex;align-items:center;gap:10px;
+    border:1.5px solid var(--ac);border-radius:10px;
+    padding:8px 12px;
+    background:var(--ac-tint,rgba(255,255,255,.04));
+  }
+  .tip .bulb{
+    flex-shrink:0;display:flex;
+    border:1.5px solid var(--ac);border-radius:6px;padding:3px;
+  }
+  .tip .bulb svg{width:16px;height:16px;stroke:var(--ac)}
+  .tip span:last-child{font-size:clamp(12px,.95vw,14px);font-weight:700;color:#f2eee3;letter-spacing:.01em}
+
+  /* ---------- intro panel (1번) ---------- */
+  .intro{align-items:center;justify-content:center;text-align:center;gap:0;
+    background:radial-gradient(120% 110% at 50% 30%,#1a1a1a 0%,#0b0b0b 60%,#060606 100%)}
+  .intro .the{
+    display:flex;align-items:center;justify-content:center;gap:14px;
+    margin-top:26px;
+  }
+  .intro .the span{
+    font-family:var(--display);font-size:clamp(20px,1.7vw,27px);
+    letter-spacing:.5em;text-indent:.5em;color:#f5f2e8;
+  }
+  .intro .bolt svg{width:22px;height:30px;fill:var(--gold)}
+  .intro .h1svg{width:92%;max-width:445px;margin:12px auto 4px}
+  .intro .ofsvg{width:76%;max-width:365px;margin:0 auto 18px}
+  .intro .h1svg svg,.intro .ofsvg svg{width:100%;height:auto;display:block}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .intro .bmt{
+    border:2px solid #d9d4c6;padding:7px 20px;
+    font-size:clamp(13px,1.05vw,16px);font-weight:700;letter-spacing:.28em;text-indent:.28em;
+    color:#f0ecdf;margin-bottom:20px;
+  }
+  .thumbs{
+    display:grid;grid-template-columns:repeat(8,1fr);gap:5px;
+    width:100%;max-width:430px;margin-bottom:20px;
+  }
+  .thumb{
+    position:relative;aspect-ratio:3/4;border-radius:6px;cursor:pointer;
+    background:#141414;border:1px solid #292929;padding:3px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .thumb:hover{border-color:var(--gold)}
+  .thumb:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+  .thumb .ph,.thumb img{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain}
+  .thumb .ph svg{width:100%;height:100%}
+  .thumb .reset,.thumb .cam{display:none}
+  .swipe{
+    display:flex;align-items:center;gap:10px;margin-bottom:14px;
+    font-family:var(--display);font-size:clamp(15px,1.2vw,19px);
+    letter-spacing:.2em;color:#f2efe4;
+  }
+  .swipe .pick svg{width:22px;height:24px;fill:var(--gold);transform:rotate(-15deg)}
+  .swipe .arrow{color:#f2efe4;font-size:1.15em}
+
+  /* ---------- footer bar ---------- */
+  .foot{
+    grid-column:1/-1;
+    background:#080808;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:13px 22px;flex-wrap:wrap;
+  }
+  .foot .save{display:flex;align-items:center;gap:8px;font-weight:700;
+    font-size:clamp(11px,.9vw,13.5px);letter-spacing:.05em;color:#f2eee2;text-transform:uppercase}
+  .foot .save svg{width:15px;height:18px;fill:var(--gold)}
+  .foot .note{
+    text-align:center;font-size:clamp(10px,.8vw,12px);line-height:1.5;
+    color:#b7b2a5;text-transform:uppercase;letter-spacing:.04em;flex:1;min-width:240px;
+  }
+  .foot .follow{display:flex;align-items:center;gap:7px;font-weight:700;
+    font-size:clamp(11px,.9vw,13.5px);letter-spacing:.05em;color:var(--gold);text-transform:uppercase}
+
+  /* ---------- responsive ---------- */
+  @media (max-width:920px){
+    #poster{grid-template-columns:1fr}
+    .foot{flex-direction:column;text-align:center}
+    .intro{min-height:78vw}
+  }
+
+  @media (prefers-reduced-motion:no-preference){
+    .pedal-media,.thumb{transition:transform .15s}
+    .pedal-media:hover{transform:translateY(-2px)}
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <p class="hint">🎛️ <b>페달 사진 바꾸기</b> — 사진(또는 1번 칸의 작은 썸네일)을 <b>클릭</b>하거나 이미지를 <b>드래그해서 놓으면</b> 내 페달 사진으로 교체됩니다. 사진은 이 브라우저에만 저장됩니다.</p>
+  <button id="reset-all" type="button">모든 사진 초기화</button>
+</div>
+
+<main id="poster" aria-label="The EQ Curves of Legendary Pedals"></main>
+
+<noscript><p style="max-width:900px;margin:20px auto;text-align:center;color:#bdb8ab">이 페이지는 JavaScript가 필요합니다. 브라우저에서 JavaScript를 허용해 주세요.</p></noscript>
+
+<input type="file" id="file-input" accept="image/*" hidden>
+
+<script>
+'use strict';
+
+/* ================= data ================= */
+const PEDALS=[
+  {id:'ts9', num:2, name:'TS9',      sub:'TUBE SCREAMER',  accent:'#3ecf46', body:'#2fa23b', plate:'#e8e4d4', ink:'#1e3c22',
+   curve:[1.8,3.8,2.6,0.3,-2.8],
+   cols:[['BASS','Slight boost','Adds low end warmth'],['MID','Slight dip','Smooths out mids'],['TREBLE','Slight cut','Softens highs']],
+   tip:'Classic mid push with smooth highs.'},
+  {id:'sd1', num:3, name:'SD-1',     sub:'SUPER OVERDRIVE',accent:'#f7c92e', body:'#e9b813', plate:'#2a2a2a', ink:'#f2e7c8',
+   curve:[1.5,3.4,4.8,2.4,2.0],
+   cols:[['BASS','Slight boost','Adds body'],['MID','Moderate boost','Cuts through the mix'],['TREBLE','Slight boost','Adds clarity and bite']],
+   tip:'Versatile drive with a strong mid presence.'},
+  {id:'bd2', num:4, name:'BD-2',     sub:'BLUES DRIVER',   accent:'#3da5f4', body:'#2e7fd2', plate:'#eef2f8', ink:'#1c3a5e',
+   curve:[2.5,1.8,-2.0,1.5,3.0],
+   cols:[['BASS','Slight boost','Warm and full'],['MID','Moderate dip','Scoop the mids'],['TREBLE','Slight boost','Brightens higher end']],
+   tip:'Smooth, warm, and bluesy.'},
+  {id:'rat', num:5, name:'RAT',      sub:'PROCO RAT 2',    accent:'#d7d7d7', body:'#1d1d1f', plate:'#111114', ink:'#ececec', silver:true,
+   curve:[2.8,4.4,6.0,1.0,-4.5],
+   cols:[['BASS','Strong boost','Fat and huge'],['MID','Strong boost','Aggressive midrange'],['TREBLE','Moderate cut','Dark and smooth highs']],
+   tip:'Aggressive, punchy, and vintage.'},
+  {id:'ds1', num:6, name:'DS-1',     sub:'DISTORTION',     accent:'#f4791f', body:'#ec6f14', plate:'#f4efe2', ink:'#3a2410',
+   curve:[1.2,2.6,5.0,1.5,-3.0],
+   cols:[['BASS','Slight boost','Adds weight'],['MID','Strong boost','Cuts through the mix'],['TREBLE','Slight cut','Smoother highs']],
+   tip:'Classic distortion with a mid punch.'},
+  {id:'muff',num:7, name:'BIG MUFF', sub:'π', pi:true, small:true, accent:'#e8352f', body:'#c8c8cc', plate:'#f2f2f2', ink:'#c22a24',
+   curve:[5.0,4.6,-1.5,1.6,-0.8],
+   cols:[['BASS','Huge boost','Massive low end'],['MID','Strong scoop','Scooped mids'],['TREBLE','Moderate cut','Smooth highs']],
+   tip:'Huge, thick, and iconic fuzz tone.'},
+  {id:'ocd', num:8, name:'OCD',      sub:'FULLTONE OCD',   accent:'#efe6cd', body:'#efe8d6', plate:'#ffffff', ink:'#333333',
+   curve:[0.6,1.6,3.0,2.6,-0.6],
+   cols:[['BASS','Balanced','Full and tight'],['MID','Slight boost','Natural mid presence'],['TREBLE','Slight cut','Smooth and open']],
+   tip:'Natural amp-like response.'},
+  {id:'klon',num:9, name:'KLON',     sub:'CENTAUR',        accent:'#d9a93c', body:'#c99f38', plate:'#b8892c', ink:'#2b1d05',
+   curve:[1.6,2.2,3.2,2.8,4.0],
+   cols:[['BASS','Slight boost','Adds fullness'],['MID','Slight boost','Enhances tone'],['TREBLE','Slight boost','Adds sparkle']],
+   tip:'Transparent overdrive. Adds magic.'}
+];
+
+/* ================= svg helpers ================= */
+
+/* Catmull-Rom → cubic bezier smooth path */
+function smoothPath(pts){
+  const r=n=>Math.round(n*10)/10;
+  let d=`M ${r(pts[0][0])} ${r(pts[0][1])}`;
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[Math.max(0,i-1)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(pts.length-1,i+2)];
+    const c1=[p1[0]+(p2[0]-p0[0])/6,p1[1]+(p2[1]-p0[1])/6];
+    const c2=[p2[0]-(p3[0]-p1[0])/6,p2[1]-(p3[1]-p1[1])/6];
+    d+=` C ${r(c1[0])} ${r(c1[1])}, ${r(c2[0])} ${r(c2[1])}, ${r(p2[0])} ${r(p2[1])}`;
+  }
+  return d;
+}
+
+function graphSVG(p){
+  const W=344,H=170,x0=44,x1=326,y0=26,y1=152;
+  const FREQ=['60Hz','250Hz','1kHz','4kHz','16kHz'];
+  const fx=i=>x0+i*(x1-x0)/4;
+  const fy=db=>y0+(15-db)/30*(y1-y0);
+  let g='';
+  /* grid: vertical (majors + midpoints) */
+  for(let i=0;i<=8;i++){
+    const x=x0+i*(x1-x0)/8, major=i%2===0;
+    g+=`<line x1="${x}" y1="${y0}" x2="${x}" y2="${y1}" stroke="rgba(255,255,255,${major?0.13:0.06})" stroke-width="1"/>`;
+  }
+  /* grid: horizontal every 5dB */
+  for(let db=-15;db<=15;db+=5){
+    const y=fy(db), zero=db===0;
+    g+=`<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="rgba(255,255,255,${zero?0.30:0.08})" stroke-width="${zero?1.3:1}"/>`;
+  }
+  /* labels */
+  let labels='';
+  FREQ.forEach((f,i)=>{labels+=`<text x="${fx(i)}" y="15" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#d8d3c6">${f}</text>`;});
+  labels+=`<text x="${x0-6}" y="${fy(15)+4}" text-anchor="end" font-size="10.5" font-weight="bold" fill="#d8d3c6">+15dB</text>`;
+  labels+=`<text x="${x0-6}" y="${fy(0)+4}"  text-anchor="end" font-size="10.5" font-weight="bold" fill="#d8d3c6">0dB</text>`;
+  labels+=`<text x="${x0-6}" y="${fy(-15)+4}" text-anchor="end" font-size="10.5" font-weight="bold" fill="#d8d3c6">-15dB</text>`;
+  /* curve */
+  const pts=p.curve.map((db,i)=>[fx(i),fy(db)]);
+  const line=smoothPath(pts);
+  const area=`${line} L ${x1} ${y1} L ${x0} ${y1} Z`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${p.name} EQ curve">
+    <defs>
+      <linearGradient id="fill-${p.id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${p.accent}" stop-opacity="0.55"/>
+        <stop offset="60%" stop-color="${p.accent}" stop-opacity="0.16"/>
+        <stop offset="100%" stop-color="${p.accent}" stop-opacity="0.02"/>
+      </linearGradient>
+      <filter id="glow-${p.id}" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="3.2"/>
+      </filter>
+      <clipPath id="clip-${p.id}"><rect x="${x0}" y="${y0}" width="${x1-x0}" height="${y1-y0}"/></clipPath>
+    </defs>
+    <rect x="${x0}" y="${y0}" width="${x1-x0}" height="${y1-y0}" fill="#0a0a0a"/>
+    ${g}
+    <g clip-path="url(#clip-${p.id})">
+      <path d="${area}" fill="url(#fill-${p.id})"/>
+      <path d="${line}" fill="none" stroke="${p.accent}" stroke-width="6" opacity="0.35" filter="url(#glow-${p.id})"/>
+      <path d="${line}" fill="none" stroke="${p.accent}" stroke-width="2.6" stroke-linecap="round"/>
+    </g>
+    <rect x="${x0}" y="${y0}" width="${x1-x0}" height="${y1-y0}" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.2"/>
+    ${labels}
+  </svg>`;
+}
+
+/* generic stompbox placeholder drawing */
+function pedalSVG(p){
+  const plateText=p.ink;
+  const label=p.name.length>7?p.name.split(' ')[0]:p.name;
+  return `<svg viewBox="0 0 120 150" aria-hidden="true">
+    <defs>
+      <linearGradient id="pb-${p.id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${p.body}" stop-opacity="1"/>
+        <stop offset="100%" stop-color="#000" stop-opacity="0.45"/>
+      </linearGradient>
+      <radialGradient id="ps-${p.id}" cx="35%" cy="30%" r="80%">
+        <stop offset="0%" stop-color="#ffffff"/>
+        <stop offset="55%" stop-color="#b9b9b9"/>
+        <stop offset="100%" stop-color="#5c5c5c"/>
+      </radialGradient>
+    </defs>
+    <rect x="18" y="8" width="84" height="130" rx="10" fill="url(#pb-${p.id})" stroke="rgba(0,0,0,.55)" stroke-width="1.5"/>
+    <rect x="18" y="8" width="84" height="130" rx="10" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
+    ${[38,60,82].map(cx=>`
+      <circle cx="${cx}" cy="30" r="9.5" fill="#141414" stroke="#000" stroke-width="1"/>
+      <circle cx="${cx}" cy="30" r="9.5" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1"/>
+      <line x1="${cx}" y1="30" x2="${cx}" y2="22.5" stroke="#e8e8e8" stroke-width="1.6" stroke-linecap="round"/>`).join('')}
+    <rect x="29" y="52" width="62" height="26" rx="4" fill="${p.plate}" opacity="0.92"/>
+    <text x="60" y="69" text-anchor="middle" font-family="Impact,'Arial Narrow',sans-serif" font-size="14" fill="${plateText}">${label}</text>
+    <circle cx="60" cy="110" r="14" fill="url(#ps-${p.id})" stroke="#222" stroke-width="1.5"/>
+    <circle cx="60" cy="110" r="9" fill="none" stroke="rgba(0,0,0,.4)" stroke-width="1"/>
+    <circle cx="25" cy="14" r="1.8" fill="rgba(0,0,0,.5)"/><circle cx="95" cy="14" r="1.8" fill="rgba(0,0,0,.5)"/>
+    <circle cx="25" cy="132" r="1.8" fill="rgba(0,0,0,.5)"/><circle cx="95" cy="132" r="1.8" fill="rgba(0,0,0,.5)"/>
+  </svg>`;
+}
+
+const BULB=`<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.7.55 1.1 1.3 1.3 2.1h4.4c.2-.8.6-1.55 1.3-2.1A6 6 0 0 0 12 3z"/></svg>`;
+const BOLT=`<svg viewBox="0 0 20 30" aria-hidden="true"><path d="M11 0 2 17h6L7 30l11-19h-6z"/></svg>`;
+const PICK=`<svg viewBox="0 0 24 26" aria-hidden="true"><path d="M12 26C6 20 1 13.5 1 8a7.5 7.5 0 0 1 7.6-7.5C10 .5 11 1 12 1s2-.5 3.4-.5A7.5 7.5 0 0 1 23 8c0 5.5-5 12-11 18z"/></svg>`;
+const BOOKMARK=`<svg viewBox="0 0 15 18" aria-hidden="true"><path d="M0 0h15v18l-7.5-5L0 18z"/></svg>`;
+
+/* ================= build panels ================= */
+function mediaHTML(p){
+  return `<div class="pedal-media" data-media="${p.id}" role="button" tabindex="0"
+      aria-label="${p.name} 페달 사진 업로드" title="클릭 또는 드래그: 내 페달 사진으로 교체">
+    <div class="ph">${pedalSVG(p)}</div>
+    <img alt="${p.name} 페달 사진" hidden>
+    <span class="cam" aria-hidden="true">📷 사진 교체</span>
+    <button class="reset" type="button" data-reset="${p.id}" aria-label="${p.name} 사진 초기화" title="기본 그림으로 되돌리기">↺</button>
+  </div>`;
+}
+
+function hexRgba(hex,a){
+  const n=parseInt(hex.slice(1),16);
+  return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;
+}
+
+function pedalPanel(p){
+  const vars=`--ac:${p.accent};--ac-tint:${hexRgba(p.accent,.07)};--ac-glow:${hexRgba(p.accent,.35)}`;
+  return `<section class="panel pedal-panel" style="${vars}" aria-label="${p.num}. ${p.name}">
+    <span class="badge" aria-hidden="true">${p.num}</span>
+    <div class="head">
+      <div class="titlebox">
+        <h2 class="name ${p.silver?'grad-silver':''} ${p.small?'sz-s':''}">${p.name}</h2>
+        <p class="subname ${p.pi?'pi':''}">${p.sub}</p>
+      </div>
+      ${mediaHTML(p)}
+    </div>
+    <div class="graph">${graphSVG(p)}</div>
+    <div class="cols">
+      ${p.cols.map(c=>`<div class="col"><h3>${c[0]}</h3><p class="s">${c[1]}</p><p class="d">${c[2]}</p></div>`).join('')}
+    </div>
+    <div class="tip"><span class="bulb">${BULB}</span><span>${p.tip}</span></div>
+  </section>`;
+}
+
+function introPanel(){
+  const thumbs=PEDALS.map(p=>`
+    <div class="thumb" data-media="${p.id}" role="button" tabindex="0" aria-label="${p.name} 페달 사진 업로드" title="${p.name} — 클릭해서 사진 교체">
+      <div class="ph">${pedalSVG(p)}</div>
+      <img alt="${p.name}" hidden>
+    </div>`).join('');
+  return `<section class="panel intro" aria-label="1. The EQ Curves of Legendary Pedals" style="--ac:#f2c437">
+    <span class="badge" aria-hidden="true">1</span>
+    <h1 class="sr-only">The EQ Curves of Legendary Pedals — Bass · Mid · Treble</h1>
+    <div class="the"><span class="bolt">${BOLT}</span><span>THE</span><span class="bolt">${BOLT}</span></div>
+    <div class="h1svg" aria-hidden="true"><svg viewBox="0 0 320 68">
+      <text x="2" y="57" textLength="316" lengthAdjust="spacingAndGlyphs" font-size="66" font-weight="bold"
+        font-family="Impact,'Haettenschweiler','Arial Narrow',sans-serif" fill="#f7f4ea">EQ CURVES</text>
+    </svg></div>
+    <div class="ofsvg" aria-hidden="true"><svg viewBox="0 0 320 26">
+      <text x="2" y="21" textLength="316" lengthAdjust="spacingAndGlyphs" font-size="24" font-weight="bold"
+        font-family="Impact,'Haettenschweiler','Arial Narrow',sans-serif" fill="#f2c437">OF LEGENDARY PEDALS</text>
+    </svg></div>
+    <div class="bmt">BASS&nbsp;•&nbsp;MID&nbsp;•&nbsp;TREBLE</div>
+    <div class="thumbs">${thumbs}</div>
+    <div class="swipe"><span class="pick">${PICK}</span><span>SWIPE LEFT</span><span class="arrow">→</span></div>
+  </section>`;
+}
+
+function footer(){
+  return `<footer class="foot">
+    <div class="save">${BOOKMARK}<span>Save this post for your tone reference!</span></div>
+    <div class="note">EQ curves are approximate and can vary<br>based on amp, guitar, pickups and settings.</div>
+    <div class="follow"><span>Follow @guitar.day for more</span><span aria-hidden="true">🎸</span></div>
+  </footer>`;
+}
+
+const poster=document.getElementById('poster');
+poster.innerHTML=introPanel()+PEDALS.map(pedalPanel).join('')+footer();
+
+/* ================= photo upload ================= */
+const KEY=id=>'eqposter.img.'+id;
+const fileInput=document.getElementById('file-input');
+let currentId=null;
+
+function applyPhoto(id,url){
+  document.querySelectorAll(`[data-media="${id}"]`).forEach(el=>{
+    const img=el.querySelector('img'),ph=el.querySelector('.ph');
+    img.src=url;img.hidden=false;ph.style.display='none';
+    el.classList.add('has-photo');
+  });
+}
+function clearPhoto(id){
+  try{localStorage.removeItem(KEY(id));}catch(e){}
+  document.querySelectorAll(`[data-media="${id}"]`).forEach(el=>{
+    const img=el.querySelector('img'),ph=el.querySelector('.ph');
+    img.hidden=true;img.removeAttribute('src');ph.style.display='';
+    el.classList.remove('has-photo');
+  });
+}
+
+/* downscale so localStorage(≈5MB) can hold all 8 photos */
+function shrink(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const im=new Image();
+    im.onload=()=>{
+      URL.revokeObjectURL(url);
+      const MAX=760;
+      const sc=Math.min(1,MAX/Math.max(im.naturalWidth,im.naturalHeight));
+      const c=document.createElement('canvas');
+      c.width=Math.round(im.naturalWidth*sc);c.height=Math.round(im.naturalHeight*sc);
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+      const mime=file.type==='image/png'?'image/png':'image/jpeg';
+      resolve(c.toDataURL(mime,0.87));
+    };
+    im.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('decode'));};
+    im.src=url;
+  });
+}
+
+async function handleFile(id,file){
+  if(!file||!file.type.startsWith('image/')){alert('이미지 파일을 선택해 주세요.');return;}
+  let url;
+  try{url=await shrink(file);}
+  catch(e){alert('이 이미지 형식은 브라우저에서 열 수 없습니다. JPG/PNG로 변환해서 올려주세요.');return;}
+  applyPhoto(id,url);
+  try{localStorage.setItem(KEY(id),url);}
+  catch(e){alert('사진이 화면에는 적용됐지만, 용량이 커서 브라우저에 저장하지는 못했어요. (새로고침하면 사라집니다)');}
+}
+
+document.addEventListener('click',e=>{
+  const rs=e.target.closest('[data-reset]');
+  if(rs){e.stopPropagation();clearPhoto(rs.dataset.reset);return;}
+  const m=e.target.closest('[data-media]');
+  if(m){currentId=m.dataset.media;fileInput.value='';fileInput.click();}
+});
+document.addEventListener('keydown',e=>{
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-media]')){
+    e.preventDefault();currentId=e.target.dataset.media;fileInput.value='';fileInput.click();
+  }
+});
+fileInput.addEventListener('change',()=>{
+  if(currentId&&fileInput.files[0])handleFile(currentId,fileInput.files[0]);
+});
+
+/* drag & drop */
+document.addEventListener('dragover',e=>{
+  const m=e.target.closest&&e.target.closest('[data-media]');
+  if(m){e.preventDefault();m.classList.add('dragover');}
+});
+document.addEventListener('dragleave',e=>{
+  const m=e.target.closest&&e.target.closest('[data-media]');
+  if(m)m.classList.remove('dragover');
+});
+document.addEventListener('drop',e=>{
+  const m=e.target.closest&&e.target.closest('[data-media]');
+  if(m){e.preventDefault();m.classList.remove('dragover');
+    const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+    if(f)handleFile(m.dataset.media,f);}
+});
+
+/* restore saved photos */
+PEDALS.forEach(p=>{
+  let saved=null;
+  try{saved=localStorage.getItem(KEY(p.id));}catch(e){}
+  if(saved)applyPhoto(p.id,saved);
+});
+
+/* reset all */
+document.getElementById('reset-all').addEventListener('click',()=>{
+  if(confirm('업로드한 페달 사진을 모두 지우고 기본 그림으로 되돌릴까요?'))
+    PEDALS.forEach(p=>clearPhoto(p.id));
+});
+</script>
+</body>
+</html>
