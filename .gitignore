@@ -1,0 +1,10 @@
+# 봇 토큰이 들어 있는 실제 설정 파일 — 절대 커밋 금지
+config.json
+
+# 실행 중 생성되는 상태/디버그 파일
+seen_posts.json
+debug_last_page.html
+*.log
+
+__pycache__/
+*.pyc
