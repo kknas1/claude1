@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="동전쌓기">
+<meta name="theme-color" content="#0a0f24">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>동전쌓기 - Coin Stacker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="version-badge">v1.1.0</div>
+  <div class="game-wrap">
+    <header class="hud">
+      <div class="hud-item">
+        <span class="hud-label">높이</span>
+        <span id="height" class="hud-value">0</span>
+        <span class="hud-unit">cm</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">동전</span>
+        <span id="count" class="hud-value">0</span>
+        <span class="hud-unit">개</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">최고기록</span>
+        <span id="best" class="hud-value">0</span>
+        <span class="hud-unit">cm</span>
+      </div>
+    </header>
+
+    <div class="stage">
+      <canvas id="game" width="420" height="640"></canvas>
+
+      <div id="overlay" class="overlay">
+        <div class="panel">
+          <h1>🪙 동전쌓기</h1>
+          <p class="lead">떨어지는 동전을 정확히 쌓아 최대한 높게 올리세요!</p>
+          <ul class="how">
+            <li><b>← →</b> 또는 <b>드래그</b>로 좌우 이동</li>
+            <li><b>스페이스</b> 또는 <b>클릭</b>으로 떨어뜨리기</li>
+            <li>중심에서 벗어나면 동전이 미끄러져요</li>
+          </ul>
+          <button id="startBtn" class="btn">시작하기</button>
+        </div>
+      </div>
+
+      <div id="gameover" class="overlay hidden">
+        <div class="panel">
+          <h1>💥 게임 오버</h1>
+          <p class="result">
+            높이 <b id="finalHeight">0</b>cm,
+            동전 <b id="finalCount">0</b>개
+          </p>
+          <p id="newRecord" class="record hidden">🏆 신기록!</p>
+          <button id="retryBtn" class="btn">다시 도전</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="controls">
+      <button class="ctrl" id="leftBtn" aria-label="왼쪽">◀</button>
+      <button class="ctrl drop" id="dropBtn" aria-label="떨어뜨리기">DROP</button>
+      <button class="ctrl" id="rightBtn" aria-label="오른쪽">▶</button>
+    </footer>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
