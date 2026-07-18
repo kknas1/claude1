@@ -20,21 +20,40 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
                "Noto Sans KR", "Malgun Gothic", sans-serif;
   user-select: none;
+  -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 body {
+  /* position:fixed blocks iOS Safari rubber-band scroll and pull-to-refresh */
+  position: fixed;
+  inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  padding: 12px;
+  padding: max(12px, env(safe-area-inset-top))
+           max(12px, env(safe-area-inset-right))
+           max(12px, env(safe-area-inset-bottom))
+           max(12px, env(safe-area-inset-left));
+}
+
+.version-badge {
+  position: fixed;
+  top: max(6px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  z-index: 50;
+  pointer-events: none;
 }
 
 .game-wrap {
-  width: 100%;
-  max-width: 460px;
+  /* Cap width so HUD + stage (420:640) + controls always fit the viewport height */
+  width: min(100%, 460px, calc((100vh - 160px) * 0.65625));
+  width: min(100%, 460px, calc((100dvh - 160px) * 0.65625));
   display: flex;
   flex-direction: column;
   gap: 10px;

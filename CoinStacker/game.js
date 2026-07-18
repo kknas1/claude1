@@ -1,8 +1,14 @@
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-  const W = canvas.width;
-  const H = canvas.height;
+  // Logical resolution stays 420x640; the backing store is scaled by
+  // devicePixelRatio so the canvas stays sharp on Retina displays.
+  const W = 420;
+  const H = 640;
+  const DPR = Math.min(window.devicePixelRatio || 1, 3);
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  ctx.scale(DPR, DPR);
 
   const hudHeight = document.getElementById('height');
   const hudCount = document.getElementById('count');
@@ -547,7 +553,7 @@
     const dt = performance.now() - pressStart;
     const moved = Math.abs(eventX(e) - pressStartX);
     dragX = null;
-    if (dt < 220 && moved < 8) drop();
+    if (dt < 300 && moved < 12) drop();
   });
   canvas.addEventListener('pointercancel', () => {
     pressed = false;
