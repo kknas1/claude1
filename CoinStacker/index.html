@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="version-badge">v1.1.0</div>
+  <div class="version-badge">v1.2.0</div>
   <div class="game-wrap">
     <header class="hud">
       <div class="hud-item">
@@ -72,5 +72,10 @@
   </div>
 
   <script src="game.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js');
+    }
+  </script>
 </body>
 </html>
