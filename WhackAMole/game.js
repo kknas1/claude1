@@ -1,0 +1,821 @@
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  // Logical resolution stays 420x640; the backing store is scaled by
+  // devicePixelRatio so the canvas stays sharp on Retina displays.
+  const W = 420;
+  const H = 640;
+  const DPR = Math.min(window.devicePixelRatio || 1, 3);
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  ctx.scale(DPR, DPR);
+
+  const hudScore = document.getElementById('score');
+  const hudTime = document.getElementById('time');
+  const hudBest = document.getElementById('best');
+  const overlay = document.getElementById('overlay');
+  const gameover = document.getElementById('gameover');
+  const finalScore = document.getElementById('finalScore');
+  const finalMoles = document.getElementById('finalMoles');
+  const newRecord = document.getElementById('newRecord');
+  const startBtn = document.getElementById('startBtn');
+  const retryBtn = document.getElementById('retryBtn');
+  const soundBtn = document.getElementById('soundBtn');
+
+  const TOTAL_TIME = 45000;
+  const HOLE_X = [80, 210, 340];
+  const HOLE_Y = [235, 390, 545];
+  const HOLE_RX = 54;
+  const HOLE_RY = 20;
+  const MOLE_W = 74;
+  const MOLE_H = 92;
+  const BOMB_H = 66;
+  const RISE_MS = 130;
+  const FALL_MS = 170;
+  const WHACK_MS = 320;
+  const HIT_HALF_W = 52;
+  const NORMAL_PTS = 10;
+  const GOLD_PTS = 30;
+  const BOMB_PENALTY = 30;
+  const GOLD_CHANCE = 0.10;
+
+  const BEST_KEY = 'whackmole.best';
+  const MUTE_KEY = 'whackmole.muted';
+
+  /** @type {{cx:number,cy:number,state:string,type:string,t:number,upDur:number}[]} */
+  const holes = [];
+  for (const cy of HOLE_Y) {
+    for (const cx of HOLE_X) {
+      holes.push({ cx, cy, state: 'empty', type: 'normal', t: 0, upDur: 0 });
+    }
+  }
+
+  let running = false;
+  let elapsed = 0;
+  let score = 0;
+  let best = loadBest();
+  let combo = 0;
+  let molesHit = 0;
+  let spawnTimer = 0;
+  let lastTickSecond = -1;
+  let shakeT = 0;
+  let shakeMag = 0;
+
+  /** @type {{x:number,y:number,vx:number,vy:number,rot:number,vr:number,life:number,max:number,color:string,size:number,kind:string}[]} */
+  let particles = [];
+  /** @type {{x:number,y:number,text:string,color:string,life:number}[]} */
+  let popups = [];
+  /** @type {{x:number,y:number,t:number}[]} */
+  let hammers = [];
+
+  // Fixed decoration positions so the field looks the same every frame
+  const tufts = [];
+  const flowers = [];
+  (() => {
+    let seed = 7;
+    const rnd = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    for (let i = 0; i < 26; i++) {
+      tufts.push({ x: 12 + rnd() * (W - 24), y: 130 + rnd() * (H - 150), s: 0.7 + rnd() * 0.7 });
+    }
+    for (let i = 0; i < 8; i++) {
+      flowers.push({ x: 12 + rnd() * (W - 24), y: 140 + rnd() * (H - 160), c: rnd() < 0.5 ? '#ffd9e8' : '#fff3b0' });
+    }
+  })();
+
+  function loadBest() {
+    const v = parseInt(localStorage.getItem(BEST_KEY) || '0', 10);
+    return Number.isFinite(v) ? v : 0;
+  }
+  function saveBest(v) {
+    try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* private mode */ }
+  }
+
+  // ---------- Audio (synthesized, no asset files) ----------
+  let audio = null;
+  let muted = localStorage.getItem(MUTE_KEY) === '1';
+  soundBtn.textContent = muted ? '🔇' : '🔊';
+
+  function ensureAudio() {
+    if (muted) return;
+    if (!audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audio = new AC();
+    }
+    if (audio.state === 'suspended') audio.resume();
+  }
+
+  function beep(freq, dur, type, vol, slideTo, delay) {
+    if (!audio || muted) return;
+    const t0 = audio.currentTime + (delay || 0);
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.type = type || 'square';
+    o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    g.gain.setValueAtTime(vol || 0.15, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g).connect(audio.destination);
+    o.start(t0);
+    o.stop(t0 + dur + 0.02);
+  }
+
+  function noiseBurst(dur, vol) {
+    if (!audio || muted) return;
+    const len = Math.max(1, Math.floor(audio.sampleRate * dur));
+    const buf = audio.createBuffer(1, len, audio.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = audio.createBufferSource();
+    const g = audio.createGain();
+    src.buffer = buf;
+    g.gain.value = vol;
+    src.connect(g).connect(audio.destination);
+    src.start();
+  }
+
+  const sHit = () => beep(500, 0.09, 'square', 0.16, 200);
+  const sGold = () => { beep(720, 0.07, 'sine', 0.16); beep(1080, 0.1, 'sine', 0.16, null, 0.07); };
+  const sBomb = () => { noiseBurst(0.28, 0.25); beep(100, 0.3, 'sawtooth', 0.22, 45); };
+  const sWhiff = () => noiseBurst(0.05, 0.05);
+  const sTick = () => beep(1200, 0.04, 'square', 0.1);
+  const sStart = () => { beep(520, 0.08, 'sine', 0.15); beep(780, 0.12, 'sine', 0.15, null, 0.09); };
+  const sEnd = () => { beep(660, 0.14, 'sine', 0.16); beep(520, 0.14, 'sine', 0.16, null, 0.15); beep(390, 0.25, 'sine', 0.16, null, 0.3); };
+
+  soundBtn.addEventListener('click', () => {
+    muted = !muted;
+    localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
+    soundBtn.textContent = muted ? '🔇' : '🔊';
+    if (!muted) ensureAudio();
+  });
+
+  // ---------- Difficulty ramp ----------
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  const easeOut = (t) => 1 - (1 - t) * (1 - t);
+
+  function difficulty() {
+    return clamp01(elapsed / TOTAL_TIME);
+  }
+  function spawnDelay() {
+    return lerp(850, 380, difficulty());
+  }
+  function upTime(type) {
+    let t = lerp(1100, 580, difficulty());
+    if (type === 'gold') t *= 0.72;
+    if (type === 'bomb') t *= 1.1;
+    return t;
+  }
+  function bombChance() {
+    return lerp(0.07, 0.16, difficulty());
+  }
+
+  // ---------- Game flow ----------
+  function reset() {
+    for (const h of holes) {
+      h.state = 'empty';
+      h.t = 0;
+    }
+    particles = [];
+    popups = [];
+    hammers = [];
+    elapsed = 0;
+    score = 0;
+    combo = 0;
+    molesHit = 0;
+    spawnTimer = 450;
+    lastTickSecond = -1;
+    shakeT = 0;
+    updateHud();
+  }
+
+  function startGame() {
+    ensureAudio();
+    reset();
+    overlay.classList.add('hidden');
+    gameover.classList.add('hidden');
+    running = true;
+    sStart();
+  }
+
+  function endGame() {
+    running = false;
+    for (const h of holes) {
+      if (h.state === 'rising' || h.state === 'up') {
+        h.state = 'falling';
+        h.t = 0;
+      }
+    }
+    finalScore.textContent = score;
+    finalMoles.textContent = molesHit;
+    if (score > best) {
+      best = score;
+      saveBest(best);
+      newRecord.classList.remove('hidden');
+    } else {
+      newRecord.classList.add('hidden');
+    }
+    updateHud();
+    gameover.classList.remove('hidden');
+    sEnd();
+  }
+
+  function updateHud() {
+    hudScore.textContent = score;
+    hudTime.textContent = Math.max(0, Math.ceil((TOTAL_TIME - elapsed) / 1000));
+    hudBest.textContent = best;
+  }
+
+  function pickType() {
+    const r = Math.random();
+    if (r < GOLD_CHANCE) return 'gold';
+    if (r < GOLD_CHANCE + bombChance()) return 'bomb';
+    return 'normal';
+  }
+
+  function spawnMole() {
+    const empty = holes.filter((h) => h.state === 'empty');
+    if (!empty.length) return;
+    const h = empty[Math.floor(Math.random() * empty.length)];
+    h.type = pickType();
+    h.state = 'rising';
+    h.t = 0;
+    h.upDur = upTime(h.type);
+  }
+
+  // ---------- Input ----------
+  canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (!running) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (W / rect.width);
+    const y = (e.clientY - rect.top) * (H / rect.height);
+    whackAt(x, y);
+  });
+
+  function visibleProgress(h) {
+    if (h.state === 'rising') return easeOut(clamp01(h.t / RISE_MS));
+    if (h.state === 'up') return 1;
+    if (h.state === 'falling') return 1 - clamp01(h.t / FALL_MS);
+    if (h.state === 'whacked') return 1 - clamp01(h.t / WHACK_MS) * 0.6;
+    return 0;
+  }
+
+  function popHeight(h) {
+    return h.type === 'bomb' ? BOMB_H : MOLE_H;
+  }
+
+  function whackAt(x, y) {
+    hammers.push({ x, y, t: 0 });
+    let hitSomething = false;
+    let nearWhacked = false;
+
+    for (const h of holes) {
+      const p = visibleProgress(h);
+      const top = h.cy - popHeight(h) * p - 8;
+      const inBox = Math.abs(x - h.cx) <= HIT_HALF_W && y >= top && y <= h.cy + HOLE_RY + 8;
+      if (!inBox) continue;
+      if (h.state === 'rising' || h.state === 'up') {
+        hitSomething = true;
+        if (h.type === 'bomb') {
+          hitBomb(h);
+        } else {
+          hitMole(h);
+        }
+        break;
+      }
+      if (h.state === 'whacked') nearWhacked = true;
+    }
+
+    // Tapping a mole that was just whacked shouldn't punish fast fingers,
+    // so only a genuinely empty tap breaks the combo.
+    if (!hitSomething && !nearWhacked) {
+      combo = 0;
+      sWhiff();
+    }
+  }
+
+  function hitMole(h) {
+    combo += 1;
+    const bonus = Math.min(combo - 1, 10) * 2;
+    const base = h.type === 'gold' ? GOLD_PTS : NORMAL_PTS;
+    const pts = base + bonus;
+    score += pts;
+    molesHit += 1;
+    h.state = 'whacked';
+    h.t = 0;
+
+    const py = h.cy - popHeight(h) * 0.9;
+    popups.push({
+      x: h.cx, y: py, life: 0,
+      text: `+${pts}`,
+      color: h.type === 'gold' ? '#ffd54d' : '#ffffff',
+    });
+    spawnStars(h.cx, py + 20, h.type === 'gold' ? 10 : 6, h.type === 'gold' ? '#ffd54d' : '#ffe9a0');
+    if (h.type === 'gold') sGold(); else sHit();
+  }
+
+  function hitBomb(h) {
+    combo = 0;
+    score = Math.max(0, score - BOMB_PENALTY);
+    h.state = 'whacked';
+    h.t = 0;
+    shakeT = 300;
+    shakeMag = 8;
+
+    const py = h.cy - BOMB_H * 0.7;
+    popups.push({ x: h.cx, y: py, life: 0, text: `-${BOMB_PENALTY}`, color: '#ff5566' });
+    for (let i = 0; i < 16; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 1.5 + Math.random() * 3.5;
+      particles.push({
+        x: h.cx, y: py + 10,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1,
+        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+        life: 0, max: 450 + Math.random() * 250,
+        color: i % 3 === 0 ? '#ff9a3d' : i % 3 === 1 ? '#ffd54d' : '#8d8d8d',
+        size: 3 + Math.random() * 5, kind: 'dot',
+      });
+    }
+    sBomb();
+  }
+
+  function spawnStars(x, y, n, color) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 1 + Math.random() * 2.5;
+      particles.push({
+        x, y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2,
+        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.25,
+        life: 0, max: 400 + Math.random() * 200,
+        color, size: 5 + Math.random() * 4, kind: 'star',
+      });
+    }
+  }
+
+  // ---------- Update ----------
+  function update(dt) {
+    elapsed += dt;
+    const remaining = TOTAL_TIME - elapsed;
+    if (remaining <= 0) {
+      endGame();
+      return;
+    }
+
+    // Countdown ticks for the last 3 seconds
+    const sec = Math.ceil(remaining / 1000);
+    if (sec <= 3 && sec !== lastTickSecond) {
+      lastTickSecond = sec;
+      sTick();
+    }
+
+    spawnTimer -= dt;
+    while (spawnTimer <= 0) {
+      spawnMole();
+      // Late game occasionally pops two moles at once
+      if (difficulty() > 0.55 && Math.random() < 0.35) spawnMole();
+      spawnTimer += spawnDelay();
+    }
+
+    for (const h of holes) {
+      if (h.state === 'empty') continue;
+      h.t += dt;
+      if (h.state === 'rising' && h.t >= RISE_MS) {
+        h.state = 'up';
+        h.t = 0;
+      } else if (h.state === 'up' && h.t >= h.upDur) {
+        h.state = 'falling';
+        h.t = 0;
+        if (h.type !== 'bomb') {
+          // An escaped mole taunts you but doesn't break the combo
+          popups.push({ x: h.cx, y: h.cy - MOLE_H, life: 0, text: '휙!', color: 'rgba(255,255,255,0.55)' });
+        }
+      } else if (h.state === 'falling' && h.t >= FALL_MS) {
+        h.state = 'empty';
+      } else if (h.state === 'whacked' && h.t >= WHACK_MS) {
+        h.state = 'empty';
+      }
+    }
+
+    for (const p of particles) {
+      p.life += dt;
+      p.x += p.vx * dt / 16;
+      p.y += p.vy * dt / 16;
+      p.vy += 0.08 * dt / 16;
+      p.rot += p.vr * dt / 16;
+    }
+    particles = particles.filter((p) => p.life < p.max);
+
+    for (const p of popups) {
+      p.life += dt;
+      p.y -= 0.55 * dt / 16;
+    }
+    popups = popups.filter((p) => p.life < 700);
+
+    for (const hm of hammers) hm.t += dt;
+    hammers = hammers.filter((hm) => hm.t < 230);
+
+    if (shakeT > 0) shakeT -= dt;
+
+    updateHud();
+  }
+
+  // ---------- Drawing ----------
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    if (shakeT > 0) {
+      const k = shakeT / 300;
+      ctx.translate((Math.random() - 0.5) * shakeMag * k, (Math.random() - 0.5) * shakeMag * k);
+    }
+
+    drawField();
+    drawTimeBar();
+    drawCombo();
+
+    for (const h of holes) {
+      drawHoleBack(h);
+      if (h.state !== 'empty') {
+        if (h.type === 'bomb') drawBomb(h); else drawMole(h);
+      }
+      drawHoleFront(h);
+    }
+
+    drawParticles();
+    drawPopups();
+    drawHammers();
+    ctx.restore();
+  }
+
+  function drawField() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#57b85c');
+    g.addColorStop(0.5, '#469c4b');
+    g.addColorStop(1, '#357c3a');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = 'rgba(28, 92, 33, 0.5)';
+    ctx.lineWidth = 2;
+    for (const t of tufts) {
+      ctx.beginPath();
+      for (let i = -1; i <= 1; i++) {
+        ctx.moveTo(t.x + i * 4 * t.s, t.y);
+        ctx.quadraticCurveTo(t.x + i * 6 * t.s, t.y - 7 * t.s, t.x + i * 7 * t.s, t.y - 12 * t.s);
+      }
+      ctx.stroke();
+    }
+    for (const f of flowers) {
+      ctx.fillStyle = f.c;
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.ellipse(f.x + Math.cos(a) * 4, f.y + Math.sin(a) * 4, 3, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffb300';
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawTimeBar() {
+    const x = 30, y = 20, w = W - 60, h = 16;
+    const frac = clamp01((TOTAL_TIME - elapsed) / TOTAL_TIME);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    roundRect(x, y, w, h, 8);
+    ctx.fill();
+    if (frac > 0) {
+      const color = frac > 0.5 ? '#8bd450' : frac > 0.22 ? '#ffb300' : '#ff5566';
+      ctx.fillStyle = color;
+      roundRect(x + 2, y + 2, Math.max(4, (w - 4) * frac), h - 4, 6);
+      ctx.fill();
+    }
+  }
+
+  function drawCombo() {
+    if (combo < 2) return;
+    const pulse = 1 + 0.06 * Math.sin(elapsed / 90);
+    ctx.save();
+    ctx.translate(W / 2, 58);
+    ctx.scale(pulse, pulse);
+    ctx.font = '800 20px -apple-system, "Apple SD Gothic Neo", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffd54d';
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 4;
+    ctx.strokeText(`🔥 콤보 x${combo}`, 0, 0);
+    ctx.fillText(`🔥 콤보 x${combo}`, 0, 0);
+    ctx.restore();
+  }
+
+  function drawHoleBack(h) {
+    // Dirt mound behind the opening
+    ctx.fillStyle = '#6b4a2a';
+    ctx.beginPath();
+    ctx.ellipse(h.cx, h.cy + 4, HOLE_RX + 10, HOLE_RY + 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // The dark opening
+    const g = ctx.createRadialGradient(h.cx, h.cy, 4, h.cx, h.cy, HOLE_RX);
+    g.addColorStop(0, '#17100a');
+    g.addColorStop(1, '#2e2013');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(h.cx, h.cy, HOLE_RX, HOLE_RY, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawHoleFront(h) {
+    // Front lip drawn over the mole so it looks like it comes out of the hole
+    ctx.fillStyle = '#7d5732';
+    ctx.beginPath();
+    ctx.ellipse(h.cx, h.cy + 6, HOLE_RX + 8, HOLE_RY + 6, 0, 0, Math.PI);
+    ctx.fill();
+    ctx.fillStyle = '#8f6539';
+    ctx.beginPath();
+    ctx.ellipse(h.cx, h.cy + 4, HOLE_RX + 4, HOLE_RY + 3, 0, 0.15, Math.PI - 0.15);
+    ctx.fill();
+  }
+
+  function drawMole(h) {
+    const p = visibleProgress(h);
+    if (p <= 0.02) return;
+    const whacked = h.state === 'whacked';
+    const gold = h.type === 'gold';
+    const bodyH = MOLE_H * p;
+    const half = MOLE_W / 2;
+    const bottom = h.cy + 8;
+    const top = bottom - bodyH;
+
+    ctx.save();
+    // Body capsule doubles as a clip so face parts never leak out
+    const body = new Path2D();
+    body.moveTo(h.cx - half, bottom);
+    body.lineTo(h.cx - half, top + half);
+    body.arc(h.cx, top + half, half, Math.PI, 0);
+    body.lineTo(h.cx + half, bottom);
+    body.closePath();
+
+    const g = ctx.createLinearGradient(h.cx - half, 0, h.cx + half, 0);
+    if (gold) {
+      g.addColorStop(0, '#e8b62a');
+      g.addColorStop(0.5, '#ffd863');
+      g.addColorStop(1, '#d8a41e');
+    } else {
+      g.addColorStop(0, '#7a5233');
+      g.addColorStop(0.5, '#96693f');
+      g.addColorStop(1, '#6e4a2d');
+    }
+    ctx.fillStyle = g;
+    ctx.fill(body);
+    ctx.clip(body);
+
+    const faceY = top + half; // face anchored to the head
+    // Muzzle
+    ctx.fillStyle = gold ? '#ffedb0' : '#cfa878';
+    ctx.beginPath();
+    ctx.ellipse(h.cx, faceY + 14, 22, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Nose
+    ctx.fillStyle = '#ef6a8a';
+    ctx.beginPath();
+    ctx.ellipse(h.cx, faceY + 6, 8, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Whiskers
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (const s of [-1, 1]) {
+      ctx.moveTo(h.cx + s * 12, faceY + 10);
+      ctx.lineTo(h.cx + s * 30, faceY + 6);
+      ctx.moveTo(h.cx + s * 12, faceY + 14);
+      ctx.lineTo(h.cx + s * 30, faceY + 15);
+    }
+    ctx.stroke();
+
+    if (whacked) {
+      // X eyes
+      ctx.strokeStyle = '#2b1c10';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      for (const s of [-1, 1]) {
+        const ex = h.cx + s * 15;
+        const ey = faceY - 6;
+        ctx.beginPath();
+        ctx.moveTo(ex - 4, ey - 4); ctx.lineTo(ex + 4, ey + 4);
+        ctx.moveTo(ex + 4, ey - 4); ctx.lineTo(ex - 4, ey + 4);
+        ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle = '#241812';
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc(h.cx + s * 15, faceY - 6, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#241812';
+      }
+      // Eye glints
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc(h.cx + s * 15 + 1.5, faceY - 7.5, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Front teeth
+      ctx.fillStyle = '#fffdf5';
+      ctx.fillRect(h.cx - 5, faceY + 18, 4.5, 6);
+      ctx.fillRect(h.cx + 0.5, faceY + 18, 4.5, 6);
+    }
+
+    // Blush
+    ctx.fillStyle = 'rgba(255, 120, 140, 0.25)';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(h.cx + s * 26, faceY + 6, 7, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Paws grabbing the rim once fully up
+    if (p > 0.85 && !whacked) {
+      ctx.fillStyle = gold ? '#ffedb0' : '#cfa878';
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(h.cx + s * (half - 4), h.cy + 2, 9, 6, s * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    if (gold && !whacked) {
+      // Sparkle so the bonus mole reads at a glance
+      const tw = (Math.sin(elapsed / 120 + h.cx) + 1) / 2;
+      ctx.fillStyle = `rgba(255, 255, 210, ${0.4 + tw * 0.6})`;
+      drawStarShape(h.cx + half - 8, top + 6, 5 + tw * 2);
+    }
+  }
+
+  function drawBomb(h) {
+    const p = visibleProgress(h);
+    if (p <= 0.02) return;
+    const exploded = h.state === 'whacked';
+    const bottom = h.cy + 6;
+    const cy = bottom - BOMB_H * p + 26;
+    const r = 26;
+
+    if (exploded) {
+      // Expanding flash ring instead of the bomb body
+      const k = clamp01(h.t / WHACK_MS);
+      ctx.strokeStyle = `rgba(255, 170, 60, ${1 - k})`;
+      ctx.lineWidth = 6 * (1 - k) + 1;
+      ctx.beginPath();
+      ctx.arc(h.cx, cy, r + k * 46, 0, Math.PI * 2);
+      ctx.stroke();
+      return;
+    }
+
+    const g = ctx.createRadialGradient(h.cx - 8, cy - 8, 4, h.cx, cy, r + 4);
+    g.addColorStop(0, '#5a5a66');
+    g.addColorStop(1, '#17171d');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(h.cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    // Cap and fuse
+    ctx.fillStyle = '#3a3a44';
+    ctx.fillRect(h.cx - 7, cy - r - 8, 14, 10);
+    ctx.strokeStyle = '#a8814e';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(h.cx, cy - r - 8);
+    ctx.quadraticCurveTo(h.cx + 10, cy - r - 18, h.cx + 18, cy - r - 14);
+    ctx.stroke();
+    // Spark
+    const tw = Math.random();
+    ctx.fillStyle = `rgba(255, ${180 + tw * 60}, 60, ${0.7 + tw * 0.3})`;
+    drawStarShape(h.cx + 19, cy - r - 15, 5 + tw * 3);
+    // Skull-lite warning glyph
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = '800 17px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('!', h.cx, cy + 1);
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      const a = 1 - p.life / p.max;
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      if (p.kind === 'star') {
+        drawStarShape(0, 0, p.size);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawStarShape(x, y, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+      const rr = i % 2 === 0 ? r : r * 0.45;
+      const px = x + Math.cos(a) * rr;
+      const py = y + Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawPopups() {
+    ctx.font = '800 22px -apple-system, "Apple SD Gothic Neo", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const p of popups) {
+      const a = 1 - Math.max(0, p.life - 350) / 350;
+      ctx.globalAlpha = Math.max(0, a);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 4;
+      ctx.strokeText(p.text, p.x, p.y);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, p.x, p.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHammers() {
+    for (const hm of hammers) {
+      const swing = clamp01(hm.t / 100);
+      const fade = 1 - clamp01((hm.t - 150) / 80);
+      const angle = lerp(-0.9, 0.785, easeOut(swing));
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.translate(hm.x + 30, hm.y - 30);
+      ctx.rotate(angle);
+      // Handle
+      ctx.fillStyle = '#a5713d';
+      roundRect(-5, 0, 10, 46, 4);
+      ctx.fill();
+      // Head
+      ctx.fillStyle = '#8d8d99';
+      roundRect(-19, 40, 38, 20, 6);
+      ctx.fill();
+      ctx.fillStyle = '#6f6f7c';
+      roundRect(-19, 40, 8, 20, 4);
+      ctx.fill();
+      ctx.restore();
+      // Impact flash right at the tap point while swinging down
+      if (swing >= 1 && hm.t < 160) {
+        ctx.save();
+        ctx.globalAlpha = fade * 0.5;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(hm.x, hm.y, 14 + (hm.t - 100) * 0.2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // ---------- Main loop ----------
+  let last = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    // Capping dt also freezes the timer while the tab is in the background
+    const dt = Math.min(now - (last || now), 50);
+    last = now;
+    if (running) update(dt);
+    draw();
+  }
+
+  startBtn.addEventListener('click', startGame);
+  retryBtn.addEventListener('click', startGame);
+
+  updateHud();
+  requestAnimationFrame(frame);
+})();
