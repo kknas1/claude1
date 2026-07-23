@@ -1,7 +1,7 @@
 // Cache-first service worker: after the first visit the whole game lives on
 // the device and runs offline. Bump CACHE_VERSION together with the version
 // badge whenever any cached file changes, or clients keep the old build.
-const CACHE_VERSION = 'whackmole-v1.2.0';
+const CACHE_VERSION = 'whackmole-v1.3.0';
 const ASSETS = [
   './',
   './index.html',
