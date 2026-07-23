@@ -27,6 +27,10 @@
   const nameInput = document.getElementById('nameInput');
   const saveScoreBtn = document.getElementById('saveScoreBtn');
   const rankList = document.getElementById('rankList');
+  const ranksBtn = document.getElementById('ranksBtn');
+  const ranksOverlay = document.getElementById('ranksOverlay');
+  const closeRanksBtn = document.getElementById('closeRanksBtn');
+  const rankListFull = document.getElementById('rankListFull');
 
   const TOTAL_TIME = 45000;
   const HOLE_X = [80, 210, 340];
@@ -49,7 +53,7 @@
   const MUTE_KEY = 'whackmole.muted';
   const RANKS_KEY = 'whackmole.ranks';
   const NAME_KEY = 'whackmole.name';
-  const MAX_RANKS = 10;
+  const MAX_RANKS = 20;
 
   /** @type {{cx:number,cy:number,state:string,type:string,t:number,upDur:number}[]} */
   const holes = [];
@@ -123,14 +127,15 @@
     const ranks = loadRanks();
     return ranks.length < MAX_RANKS || s > ranks[ranks.length - 1].score;
   }
-  function renderRanks(highlight) {
+  function renderRanks(highlight, listEl) {
+    const el = listEl || rankList;
     const ranks = loadRanks();
-    rankList.innerHTML = '';
+    el.innerHTML = '';
     if (!ranks.length) {
       const li = document.createElement('li');
       li.className = 'empty';
       li.textContent = '아직 기록이 없어요';
-      rankList.appendChild(li);
+      el.appendChild(li);
       return;
     }
     const medals = ['🥇', '🥈', '🥉'];
@@ -143,7 +148,7 @@
       pts.textContent = `${r.score}점 · ${r.moles}마리`;
       li.appendChild(who);
       li.appendChild(pts);
-      rankList.appendChild(li);
+      el.appendChild(li);
     });
   }
   function registerScore() {
@@ -161,6 +166,14 @@
   saveScoreBtn.addEventListener('click', registerScore);
   nameInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') registerScore();
+  });
+
+  ranksBtn.addEventListener('click', () => {
+    renderRanks(null, rankListFull);
+    ranksOverlay.classList.remove('hidden');
+  });
+  closeRanksBtn.addEventListener('click', () => {
+    ranksOverlay.classList.add('hidden');
   });
 
   // ---------- Audio (synthesized, no asset files) ----------
@@ -279,6 +292,7 @@
     reset();
     overlay.classList.add('hidden');
     gameover.classList.add('hidden');
+    ranksOverlay.classList.add('hidden');
     running = true;
     sStart();
   }

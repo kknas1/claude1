@@ -209,6 +209,21 @@ body {
   box-shadow: 0 2px 0 #8a5a0a, 0 4px 10px rgba(0, 0, 0, 0.35);
 }
 
+.btn.ghost {
+  display: block;
+  margin: 12px auto 0;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--accent);
+  font-size: 15px;
+  padding: 10px 22px;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 213, 77, 0.45);
+}
+
+.btn.ghost:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 213, 77, 0.45);
+}
+
 .result {
   font-size: 16px;
   margin-bottom: 12px;
@@ -298,6 +313,12 @@ body {
 .ranks li.empty {
   justify-content: center;
   color: rgba(255, 255, 255, 0.4);
+}
+
+/* Full TOP 20 list on the rankings screen */
+.ranks.tall {
+  max-height: min(340px, 46vh);
+  font-size: 14px;
 }
 
 .record.hidden {
