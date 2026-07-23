@@ -39,6 +39,11 @@
   const SCREEN_ANCHOR = 250;     // screen Y the stack top settles at once tall
 
   const BEST_KEY = 'coinstacker.best';
+  const NAME_KEY = 'coinstacker.name';
+  // Google Apps Script web-app URL for the shared leaderboard. Empty string
+  // hides every ranking UI element, so the game degrades gracefully until the
+  // web app is deployed. window.RANK_URL lets tests inject a mock endpoint.
+  const RANK_URL = window.RANK_URL || '';
 
   /** @type {{x:number,y:number,r:number,vy:number,vx:number,settled:boolean,fallingOff:boolean,rot:number,vrot:number,color:string,shineSeed:number}[]} */
   let coins = [];
@@ -268,6 +273,7 @@
       newRecord.classList.add('hidden');
     }
     gameover.classList.remove('hidden');
+    prepareSubmit(cm, count);
   }
 
   // ---------- Rendering ----------
@@ -508,6 +514,9 @@
   retryBtn.addEventListener('click', startGame);
 
   document.addEventListener('keydown', (e) => {
+    // Don't hijack keys while typing a nickname or browsing the rank modal
+    if (e.target && e.target.tagName === 'INPUT') return;
+    if (!rankModal.classList.contains('hidden')) return;
     if (e.code === 'ArrowLeft') { keyLeft = true; e.preventDefault(); }
     else if (e.code === 'ArrowRight') { keyRight = true; e.preventDefault(); }
     else if (e.code === 'Space' || e.code === 'ArrowDown' || e.code === 'Enter') {
@@ -570,5 +579,99 @@
   bindHold(leftBtn, () => keyLeft = true, () => keyLeft = false);
   bindHold(rightBtn, () => keyRight = true, () => keyRight = false);
   dropBtn.addEventListener('click', drop);
+
+  // ---------- Shared leaderboard (Google Apps Script web app) ----------
+  const rankModal = document.getElementById('rankModal');
+  const rankList = document.getElementById('rankList');
+  const rankCloseBtn = document.getElementById('rankCloseBtn');
+  const submitBox = document.getElementById('submitBox');
+  const submitMsg = document.getElementById('submitMsg');
+  const submitBtn = document.getElementById('submitBtn');
+  const nameInput = document.getElementById('nameInput');
+  let lastScore = null; // {height, coins} pending submission
+  let submitting = false;
+
+  if (RANK_URL) {
+    document.querySelectorAll('.rank-only').forEach(el => el.classList.remove('hidden'));
+  }
+
+  function prepareSubmit(cm, count) {
+    submitMsg.textContent = '';
+    if (!RANK_URL || cm <= 0) {
+      submitBox.classList.add('hidden');
+      return;
+    }
+    lastScore = { height: cm, coins: count };
+    nameInput.value = localStorage.getItem(NAME_KEY) || '';
+    submitBox.classList.remove('hidden');
+    submitBtn.disabled = false;
+  }
+
+  async function submitScore() {
+    if (!RANK_URL || !lastScore || submitting) return;
+    const name = nameInput.value.trim().slice(0, 12) || '익명';
+    try { localStorage.setItem(NAME_KEY, name); } catch {}
+    submitting = true;
+    submitBtn.disabled = true;
+    submitMsg.textContent = '등록 중...';
+    try {
+      // Body stays text/plain (a CORS "simple request") because Apps Script
+      // web apps cannot answer preflight OPTIONS requests.
+      const res = await fetch(RANK_URL, {
+        method: 'POST',
+        body: JSON.stringify({ name, height: lastScore.height, coins: lastScore.coins }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        submitMsg.textContent = `등록 완료! 현재 ${data.rank}위`;
+        lastScore = null;
+        submitBox.classList.add('hidden');
+      } else {
+        throw new Error(data.error || 'server error');
+      }
+    } catch (err) {
+      submitMsg.textContent = '등록 실패 — 네트워크를 확인하세요';
+      submitBtn.disabled = false;
+    }
+    submitting = false;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (ch) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+    ));
+  }
+
+  async function openRanking() {
+    if (!RANK_URL) return;
+    rankModal.classList.remove('hidden');
+    rankList.innerHTML = '불러오는 중...';
+    try {
+      const res = await fetch(RANK_URL + (RANK_URL.includes('?') ? '&' : '?') + 't=' + Date.now());
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'server error');
+      const myName = localStorage.getItem(NAME_KEY) || '';
+      const rows = data.scores.slice(0, 20).map((s, i) => {
+        const cls = s.name === myName ? ' class="me"' : '';
+        const medal = ['🥇', '🥈', '🥉'][i] || `${i + 1}`;
+        return `<div${cls}><span class="rk">${medal}</span>` +
+               `<span class="nm">${escapeHtml(String(s.name))}</span>` +
+               `<span class="sc">${Number(s.height)}cm · ${Number(s.coins)}개</span></div>`;
+      });
+      rankList.innerHTML = rows.length
+        ? rows.join('')
+        : '아직 등록된 기록이 없어요.<br>첫 번째로 이름을 올려보세요!';
+    } catch (err) {
+      rankList.textContent = '랭킹을 불러오지 못했어요 — 네트워크를 확인하세요';
+    }
+  }
+
+  submitBtn.addEventListener('click', submitScore);
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.code === 'Enter') { e.preventDefault(); submitScore(); }
+  });
+  document.getElementById('rankBtn').addEventListener('click', openRanking);
+  document.getElementById('rankBtn2').addEventListener('click', openRanking);
+  rankCloseBtn.addEventListener('click', () => rankModal.classList.add('hidden'));
 
 })();
