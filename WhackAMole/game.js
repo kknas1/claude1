@@ -35,6 +35,11 @@
   const ranksStatusGO = document.getElementById('ranksStatusGO');
   const ranksLead = document.getElementById('ranksLead');
   const ranksTitleGO = document.getElementById('ranksTitleGO');
+  const tabWeek = document.getElementById('tabWeek');
+  const tabAll = document.getElementById('tabAll');
+  const champLine = document.getElementById('champLine');
+  const myRankLine = document.getElementById('myRankLine');
+  const shareBtn = document.getElementById('shareBtn');
 
   const TOTAL_TIME = 45000;
   const HOLE_X = [53, 158, 262, 367];
@@ -233,9 +238,56 @@
     }
   }
 
+  // ---------- Weekly league (client-side view over the same board) ----------
+  // Week starts Monday 00:00 device-local time; offsetWeeks=1 → last week
+  function weekStartMs(offsetWeeks) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    const day = (d.getDay() + 6) % 7; // Mon=0 … Sun=6
+    d.setDate(d.getDate() - day - (offsetWeeks || 0) * 7);
+    return d.getTime();
+  }
+  const thisWeek = (scores) => scores.filter((r) => (r.date || 0) >= weekStartMs(0));
+  function lastWeekChampion(scores) {
+    const from = weekStartMs(1);
+    const to = weekStartMs(0);
+    const last = scores.filter((r) => (r.date || 0) >= from && (r.date || 0) < to);
+    last.sort(byScore);
+    return last[0] || null;
+  }
+
+  let ranksView = 'week';   // which tab is active on the rankings screen
+  let lastScores = null;    // latest board fetched for the rankings screen
+
+  function renderRanksScreen(highlightId) {
+    tabWeek.classList.toggle('active', ranksView === 'week');
+    tabAll.classList.toggle('active', ranksView !== 'week');
+    const scores = lastScores || [];
+    const champ = lastWeekChampion(scores);
+    if (champ) {
+      champLine.textContent = `👑 지난주 챔피언: ${champ.name} (${champ.score}점)`;
+      champLine.classList.remove('hidden');
+    } else {
+      champLine.classList.add('hidden');
+    }
+    renderList(rankListFull, ranksView === 'week' ? thisWeek(scores) : scores, highlightId);
+  }
+
   // Request generation: only the newest in-flight request may paint the UI
   // or persist the replica, so slow stale responses can't undo fresh ones.
   let boardGen = 0;
+
+  // Game-over panel: this week's board plus where I landed in it
+  function updateMyRank(scores, entryId) {
+    const weekly = thisWeek(scores);
+    const idx = weekly.findIndex((r) => r.id === entryId);
+    if (idx >= 0) {
+      myRankLine.textContent = `🔥 이번 주 ${idx + 1}위!`;
+      myRankLine.classList.remove('hidden');
+    } else {
+      myRankLine.classList.add('hidden');
+    }
+  }
 
   function showRanks(el, statusEl, highlightId) {
     if (!boardEnabled()) {
@@ -251,14 +303,44 @@
         if (gen !== boardGen) return;
         saveList(BOARD_CACHE_KEY, scores);
         statusEl.textContent = '';
-        renderList(el, scores, highlightId);
+        renderList(el, thisWeek(scores), highlightId);
       })
       .catch(() => {
         if (gen !== boardGen) return;
         statusEl.textContent = '연결 실패 — 마지막으로 받아둔 순위예요';
-        renderList(el, mergedLocalView(), highlightId);
+        renderList(el, thisWeek(mergedLocalView()), highlightId);
       });
   }
+
+  // Rankings screen: fetch once, then flip between weekly/all tabs locally
+  function openRanksScreen() {
+    if (!boardEnabled()) {
+      ranksStatus.textContent = '';
+      lastScores = loadRanks();
+      renderRanksScreen(null);
+      return;
+    }
+    const gen = ++boardGen;
+    ranksStatus.textContent = '순위 불러오는 중…';
+    rankListFull.innerHTML = '';
+    champLine.classList.add('hidden');
+    fetchBoard()
+      .then((scores) => {
+        if (gen !== boardGen) return;
+        saveList(BOARD_CACHE_KEY, scores);
+        lastScores = scores;
+        ranksStatus.textContent = '';
+        renderRanksScreen(null);
+      })
+      .catch(() => {
+        if (gen !== boardGen) return;
+        lastScores = mergedLocalView();
+        ranksStatus.textContent = '연결 실패 — 마지막으로 받아둔 순위예요';
+        renderRanksScreen(null);
+      });
+  }
+  tabWeek.addEventListener('click', () => { ranksView = 'week'; renderRanksScreen(null); });
+  tabAll.addEventListener('click', () => { ranksView = 'all'; renderRanksScreen(null); });
 
   let registered = false;
   function registerScore() {
@@ -292,7 +374,8 @@
         if (gen !== boardGen) return;
         saveList(BOARD_CACHE_KEY, scores);
         ranksStatusGO.textContent = '';
-        renderList(rankList, scores, entry.id);
+        renderList(rankList, thisWeek(scores), entry.id);
+        updateMyRank(scores, entry.id);
       })
       .catch(() => {
         // Queue it: the next successful board request uploads it automatically
@@ -301,7 +384,7 @@
         saveList(PENDING_KEY, pending.slice(-20));
         if (gen !== boardGen) return;
         ranksStatusGO.textContent = '연결 실패 — 나중에 자동으로 올라가요';
-        renderList(rankList, mergedLocalView(), entry.id);
+        renderList(rankList, thisWeek(mergedLocalView()), entry.id);
       });
   }
   saveScoreBtn.addEventListener('click', registerScore);
@@ -319,8 +402,20 @@
   });
 
   ranksBtn.addEventListener('click', () => {
-    showRanks(rankListFull, ranksStatus, null);
+    openRanksScreen();
     ranksOverlay.classList.remove('hidden');
+  });
+
+  shareBtn.addEventListener('click', () => {
+    const text = `🔨 두더지 잡기에서 ${score}점 냈다! 이겨볼 사람? 👉 `;
+    const url = location.origin + location.pathname;
+    if (navigator.share) {
+      navigator.share({ text: text + url }).catch(() => { /* user cancelled */ });
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text + url)
+        .then(() => alert('도전장을 복사했어요! 붙여넣어 보내세요'))
+        .catch(() => {});
+    }
   });
   closeRanksBtn.addEventListener('click', () => {
     ranksOverlay.classList.add('hidden');
@@ -518,6 +613,7 @@
     } else {
       registerBox.classList.add('hidden');
     }
+    myRankLine.classList.add('hidden');
     showRanks(rankList, ranksStatusGO, null);
     updateHud();
     gameover.classList.remove('hidden');
@@ -1179,8 +1275,8 @@
   retryBtn.addEventListener('click', startGame);
 
   // Titles reflect whether the shared online board is wired up yet
-  ranksLead.textContent = boardEnabled() ? '모두가 함께 겨루는 TOP 20' : '이 기기에 저장된 TOP 20';
-  ranksTitleGO.textContent = boardEnabled() ? '🌍 전체 순위 TOP 20' : '🏅 순위 TOP 20 (이 기기)';
+  ranksLead.textContent = boardEnabled() ? '모두가 함께 겨루는 순위' : '이 기기에 저장된 기록';
+  ranksTitleGO.textContent = boardEnabled() ? '🔥 이번 주 순위' : '🏅 순위 (이 기기)';
 
   updateHud();
   requestAnimationFrame(frame);
