@@ -60,12 +60,24 @@ function doGet() {
   }
 }
 
+const ADMIN_PW = '1357';
+
 // POST {name, height, coins} → 기록 등록, 현재 순위 반환
+// POST {action:'reset', pw} → 비번 일치 시 점수판 전체 초기화
 function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(5000);
     const d = JSON.parse(e.postData.contents);
+
+    if (d.action === 'reset') {
+      if (String(d.pw) !== ADMIN_PW) return json_({ ok: false, error: 'wrong password' });
+      const sh = getSheet_();
+      const n = Math.max(0, sh.getLastRow() - 1);
+      if (n > 0) sh.deleteRows(2, n); // 헤더는 남기고 전부 삭제
+      return json_({ ok: true, cleared: n });
+    }
+
     const name = String(d.name || '익명').trim().slice(0, 12) || '익명';
     const height = Math.max(0, Math.min(100000, Math.round(Number(d.height) || 0)));
     const coins = Math.max(0, Math.min(100000, Math.round(Number(d.coins) || 0)));
