@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="version-badge">v1.2.0</div>
+  <div class="version-badge">v1.3.0</div>
   <div class="game-wrap">
     <header class="hud">
       <div class="hud-item">
@@ -48,6 +48,7 @@
             <li>중심에서 벗어나면 동전이 미끄러져요</li>
           </ul>
           <button id="startBtn" class="btn">시작하기</button>
+          <button id="rankBtn" class="btn ghost rank-only hidden">🏆 랭킹 보기</button>
         </div>
       </div>
 
@@ -59,7 +60,21 @@
             동전 <b id="finalCount">0</b>개
           </p>
           <p id="newRecord" class="record hidden">🏆 신기록!</p>
+          <div id="submitBox" class="submit-box rank-only hidden">
+            <input id="nameInput" maxlength="12" placeholder="닉네임" autocomplete="off">
+            <button id="submitBtn" class="btn small">랭킹 등록</button>
+          </div>
+          <p id="submitMsg" class="submit-msg"></p>
           <button id="retryBtn" class="btn">다시 도전</button>
+          <button id="rankBtn2" class="btn ghost rank-only hidden">🏆 랭킹 보기</button>
+        </div>
+      </div>
+
+      <div id="rankModal" class="overlay hidden">
+        <div class="panel">
+          <h1>🏆 랭킹</h1>
+          <div id="rankList" class="rank-list">불러오는 중...</div>
+          <button id="rankCloseBtn" class="btn">닫기</button>
         </div>
       </div>
     </div>
