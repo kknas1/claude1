@@ -265,7 +265,8 @@
   function registerScore() {
     if (registered) return;
     registered = true;
-    const name = (nameInput.value || '').trim().slice(0, 8) || '무명 두더지꾼';
+    // NFC: iOS가 분해형 한글을 보내는 경우 완성형으로 합쳐 저장
+    const name = (nameInput.value || '').normalize('NFC').trim().slice(0, 8) || '무명 두더지꾼';
     try { localStorage.setItem(NAME_KEY, name); } catch (e) { /* private mode */ }
     const entry = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
@@ -310,6 +311,12 @@
     // the last syllable off the name
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter') registerScore();
+  });
+  nameInput.addEventListener('input', (e) => {
+    // Length cap enforced only after composition ends — trimming mid-IME
+    // is what used to shatter Hangul into loose jamo on iOS
+    if (e.isComposing) return;
+    if (nameInput.value.length > 8) nameInput.value = nameInput.value.slice(0, 8);
   });
 
   ranksBtn.addEventListener('click', () => {
