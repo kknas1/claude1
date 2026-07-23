@@ -37,7 +37,7 @@
     </header>
 
     <div class="stage">
-      <div class="version-badge">v1.5.5</div>
+      <div class="version-badge">v1.6.0</div>
       <canvas id="game" width="420" height="640"></canvas>
 
       <div id="overlay" class="overlay">
@@ -60,6 +60,11 @@
         <div class="panel">
           <h1>🏅 순위</h1>
           <p id="ranksLead" class="lead">이 기기에 저장된 TOP 20</p>
+          <div class="tabs">
+            <button id="tabWeek" class="tab active">🔥 이번 주</button>
+            <button id="tabAll" class="tab">🌍 전체</button>
+          </div>
+          <p id="champLine" class="champ hidden"></p>
           <p id="ranksStatus" class="ranks-status"></p>
           <ol id="rankListFull" class="ranks tall"></ol>
           <button id="closeRanksBtn" class="btn">닫기</button>
@@ -75,6 +80,7 @@
             두더지 <b id="finalMoles">0</b>마리
           </p>
           <p id="newRecord" class="record hidden">🏆 신기록!</p>
+          <p id="myRankLine" class="myrank hidden"></p>
           <div id="registerBox" class="register hidden">
             <!-- maxlength 속성 금지: iOS 사파리에서 한글 조합을 끊어 자모가
                  낱개로 입력되는 버그가 있어 JS로 길이를 제한한다 -->
@@ -85,6 +91,7 @@
           <p id="ranksStatusGO" class="ranks-status"></p>
           <ol id="rankList" class="ranks"></ol>
           <button id="retryBtn" class="btn">다시 도전</button>
+          <button id="shareBtn" class="btn ghost">🔗 도전장 보내기</button>
         </div>
       </div>
     </div>
