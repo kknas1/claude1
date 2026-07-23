@@ -43,7 +43,6 @@
   const HOLE_RY = 15;
   const MOLE_W = 58;
   const MOLE_H = 72;
-  const BOMB_H = 54;
   const RISE_MS = 130;
   const FALL_MS = 170;
   const WHACK_MS = 320;
@@ -520,8 +519,8 @@
     return 0;
   }
 
-  function popHeight(h) {
-    return h.type === 'bomb' ? BOMB_H : MOLE_H;
+  function popHeight() {
+    return MOLE_H; // bombs are disguised as moles, same silhouette
   }
 
   function whackAt(x, y) {
@@ -607,7 +606,7 @@
     shakeT = 300;
     shakeMag = 8;
 
-    const py = h.cy - BOMB_H * 0.7;
+    const py = h.cy - MOLE_H * 0.7;
     popups.push({ x: h.cx, y: py, life: 0, text: `-${BOMB_PENALTY}`, color: '#ff5566' });
     popups.push({ x: W / 2, y: 92, life: 0, text: '⏱ -2초', color: '#ff5566' });
     for (let i = 0; i < 16; i++) {
@@ -736,7 +735,9 @@
     for (const h of holes) {
       drawHoleBack(h);
       if (h.state !== 'empty') {
-        if (h.type === 'bomb') drawBomb(h); else drawMole(h);
+        // Bombs look like moles now; only a tapped one reveals the explosion
+        if (h.type === 'bomb' && h.state === 'whacked') drawBombExplosion(h);
+        else drawMole(h);
       }
       drawHoleFront(h);
     }
@@ -984,6 +985,19 @@
       }
     }
 
+    if (h.type === 'bomb' && !whacked) {
+      // The lit fuse on the head is the ONLY tell that this mole explodes
+      ctx.strokeStyle = '#a8814e';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(h.cx, top + 2);
+      ctx.quadraticCurveTo(h.cx + 5, top - 8, h.cx + 11, top - 6);
+      ctx.stroke();
+      const tws = Math.random();
+      ctx.fillStyle = `rgba(255, ${180 + tws * 60}, 60, ${0.7 + tws * 0.3})`;
+      drawStarShape(h.cx + 12, top - 7, 3 + tws * 2);
+    }
+
     if (h.type === 'helmet' && h.hp > 1 && !whacked) {
       // Hard hat: needs one hit to knock off
       ctx.fillStyle = '#f5b91e';
@@ -1024,51 +1038,15 @@
     }
   }
 
-  function drawBomb(h) {
-    const p = visibleProgress(h);
-    if (p <= 0.02) return;
-    const exploded = h.state === 'whacked';
-    const bottom = h.cy + 6;
-    const cy = bottom - BOMB_H * p + 20;
-    const r = 20;
-
-    if (exploded) {
-      // Expanding flash ring instead of the bomb body
-      const k = clamp01(h.t / WHACK_MS);
-      ctx.strokeStyle = `rgba(255, 170, 60, ${1 - k})`;
-      ctx.lineWidth = 6 * (1 - k) + 1;
-      ctx.beginPath();
-      ctx.arc(h.cx, cy, r + k * 40, 0, Math.PI * 2);
-      ctx.stroke();
-      return;
-    }
-
-    const g = ctx.createRadialGradient(h.cx - 6, cy - 6, 3, h.cx, cy, r + 4);
-    g.addColorStop(0, '#5a5a66');
-    g.addColorStop(1, '#17171d');
-    ctx.fillStyle = g;
+  function drawBombExplosion(h) {
+    // Expanding flash ring where the disguised bomb mole was
+    const k = clamp01(h.t / WHACK_MS);
+    const cy = h.cy - MOLE_H * 0.5;
+    ctx.strokeStyle = `rgba(255, 170, 60, ${1 - k})`;
+    ctx.lineWidth = 6 * (1 - k) + 1;
     ctx.beginPath();
-    ctx.arc(h.cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
-    // Cap and fuse
-    ctx.fillStyle = '#3a3a44';
-    ctx.fillRect(h.cx - 6, cy - r - 7, 12, 9);
-    ctx.strokeStyle = '#a8814e';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(h.cx, cy - r - 7);
-    ctx.quadraticCurveTo(h.cx + 8, cy - r - 15, h.cx + 14, cy - r - 11);
+    ctx.arc(h.cx, cy, 20 + k * 40, 0, Math.PI * 2);
     ctx.stroke();
-    // Spark
-    const tw = Math.random();
-    ctx.fillStyle = `rgba(255, ${180 + tw * 60}, 60, ${0.7 + tw * 0.3})`;
-    drawStarShape(h.cx + 15, cy - r - 12, 4 + tw * 3);
-    // Skull-lite warning glyph
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.font = '800 14px -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('!', h.cx, cy + 1);
   }
 
   function drawParticles() {
