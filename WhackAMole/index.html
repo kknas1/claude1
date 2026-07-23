@@ -37,7 +37,7 @@
     </header>
 
     <div class="stage">
-      <div class="version-badge">v1.5.3</div>
+      <div class="version-badge">v1.5.4</div>
       <canvas id="game" width="420" height="640"></canvas>
 
       <div id="overlay" class="overlay">
@@ -94,6 +94,15 @@
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js');
+      // When a new version's service worker takes over, reload once so the
+      // page immediately runs the complete new release
+      const hadController = !!navigator.serviceWorker.controller;
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController || reloaded) return;
+        reloaded = true;
+        location.reload();
+      });
     }
   </script>
 </body>
