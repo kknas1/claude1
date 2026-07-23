@@ -40,13 +40,16 @@ body {
            max(12px, env(safe-area-inset-left));
 }
 
+/* Sits inside the stage, above the overlays, so the current version is
+   always readable at the top of the game on every screen. */
 .version-badge {
-  position: fixed;
-  top: max(6px, env(safe-area-inset-top));
-  right: max(8px, env(safe-area-inset-right));
+  position: absolute;
+  top: 5px;
+  right: 10px;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
-  z-index: 50;
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  z-index: 30;
   pointer-events: none;
 }
 
