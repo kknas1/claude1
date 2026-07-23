@@ -42,7 +42,7 @@ body {
 
 /* Sits inside the stage, above the overlays, so the current version is
    always readable at the top of the game on every screen.
-   Clickable: tapping it 7 times opens the hidden admin reset. */
+   Clickable: tapping it (outside a run) opens the admin reset. */
 .version-badge {
   position: absolute;
   top: 5px;

@@ -326,18 +326,12 @@
     ranksOverlay.classList.add('hidden');
   });
 
-  // Hidden admin: tap the version badge 7 times quickly, enter the key set
-  // in server/Code.gs (ADMIN_KEY) to wipe the shared leaderboard.
+  // Admin: tap the version badge (menu or game-over screen only, so stray
+  // taps mid-game never interrupt), enter the key from server/Code.gs
+  // (ADMIN_KEY) to wipe the shared leaderboard.
   const versionBadge = document.querySelector('.version-badge');
-  let adminTaps = 0;
-  let adminTapTimer = null;
   versionBadge.addEventListener('click', () => {
-    adminTaps += 1;
-    clearTimeout(adminTapTimer);
-    adminTapTimer = setTimeout(() => { adminTaps = 0; }, 1500);
-    if (adminTaps < 7) return;
-    adminTaps = 0;
-    if (!boardEnabled()) return;
+    if (running || !boardEnabled()) return;
     const key = prompt('관리자 키를 입력하세요');
     if (!key) return;
     boardRequest('POST', { admin: key, action: 'clear' })

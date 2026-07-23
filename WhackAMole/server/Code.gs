@@ -19,9 +19,9 @@
 var STORE_KEY = 'scores';
 var RESET_KEY = 'resetAt';
 var STORE_MAX = 50;
-// 관리자 키: 붙여넣을 때 꼭 원하는 비밀 문구로 바꾸세요!
-// 게임에서 버전 배지를 7번 연타하면 이 키를 물어보고, 맞으면 순위판을 비웁니다.
-var ADMIN_KEY = 'CHANGE-ME-1234';
+// 관리자 키: 게임의 시작/게임오버 화면에서 버전 배지를 탭하면 이 키를
+// 물어보고, 맞으면 순위판을 비웁니다. 원하면 다른 문구로 바꿔도 됩니다.
+var ADMIN_KEY = '1357';
 
 function doGet() {
   return respond({ scores: load() });
