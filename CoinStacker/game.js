@@ -20,8 +20,6 @@
   const newRecord = document.getElementById('newRecord');
   const startBtn = document.getElementById('startBtn');
   const retryBtn = document.getElementById('retryBtn');
-  const leftBtn = document.getElementById('leftBtn');
-  const rightBtn = document.getElementById('rightBtn');
   const dropBtn = document.getElementById('dropBtn');
 
   const COIN_RADIUS = 32;
@@ -420,22 +418,6 @@
     ctx.fill();
   }
 
-  function drawGuide() {
-    if (!activeCoin || activeCoin.vy > 0) return;
-    const x = activeCoin.x;
-    const startY = activeCoin.y + activeCoin.r + 6 - cameraY;
-    const endY = (stackTopY - cameraY) - 4;
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,204,77,0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 6]);
-    ctx.beginPath();
-    ctx.moveTo(x, startY);
-    ctx.lineTo(x, endY);
-    ctx.stroke();
-    ctx.restore();
-  }
-
   function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -478,7 +460,6 @@
     drawHeightMarker();
 
     if (activeCoin) {
-      drawGuide();
       drawCoin(activeCoin, activeCoin.vy === 0);
     }
   }
@@ -570,15 +551,6 @@
     dragX = null;
   });
 
-  // Button controls
-  function bindHold(btn, onDown, onUp) {
-    btn.addEventListener('pointerdown', (e) => { e.preventDefault(); onDown(); });
-    btn.addEventListener('pointerup', (e) => { e.preventDefault(); onUp && onUp(); });
-    btn.addEventListener('pointerleave', () => { onUp && onUp(); });
-    btn.addEventListener('pointercancel', () => { onUp && onUp(); });
-  }
-  bindHold(leftBtn, () => keyLeft = true, () => keyLeft = false);
-  bindHold(rightBtn, () => keyRight = true, () => keyRight = false);
   dropBtn.addEventListener('click', drop);
 
   // ---------- Shared leaderboard (Google Apps Script web app) ----------
