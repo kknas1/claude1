@@ -50,7 +50,6 @@
   const NORMAL_PTS = 10;
   const GOLD_PTS = 30;
   const HELMET_PTS = 20;
-  const FLOWER_PENALTY = 20;
   const BOMB_PENALTY = 30;
   const BOMB_TIME_MS = 2000;
   const GOLD_CHANCE = 0.09;
@@ -327,6 +326,29 @@
     ranksOverlay.classList.add('hidden');
   });
 
+  // Hidden admin: tap the version badge 7 times quickly, enter the key set
+  // in server/Code.gs (ADMIN_KEY) to wipe the shared leaderboard.
+  const versionBadge = document.querySelector('.version-badge');
+  let adminTaps = 0;
+  let adminTapTimer = null;
+  versionBadge.addEventListener('click', () => {
+    adminTaps += 1;
+    clearTimeout(adminTapTimer);
+    adminTapTimer = setTimeout(() => { adminTaps = 0; }, 1500);
+    if (adminTaps < 7) return;
+    adminTaps = 0;
+    if (!boardEnabled()) return;
+    const key = prompt('관리자 키를 입력하세요');
+    if (!key) return;
+    boardRequest('POST', { admin: key, action: 'clear' })
+      .then(() => {
+        saveList(BOARD_CACHE_KEY, []);
+        saveList(PENDING_KEY, []);
+        alert('공유 순위판이 초기화됐어요');
+      })
+      .catch((err) => alert('초기화 실패: ' + err.message));
+  });
+
   // ---------- Audio (synthesized, no asset files) ----------
   let audio = null;
   let muted = localStorage.getItem(MUTE_KEY) === '1';
@@ -379,7 +401,6 @@
   const sStart = () => { beep(520, 0.08, 'sine', 0.15); beep(780, 0.12, 'sine', 0.15, null, 0.09); };
   const sLevelUp = () => { beep(620, 0.07, 'square', 0.14); beep(830, 0.07, 'square', 0.14, null, 0.08); beep(1100, 0.12, 'square', 0.14, null, 0.16); };
   const sClink = () => { beep(1500, 0.05, 'square', 0.12, 1100); noiseBurst(0.03, 0.05); };
-  const sSad = () => beep(420, 0.22, 'sine', 0.16, 190);
   const sEnd = () => { beep(660, 0.14, 'sine', 0.16); beep(520, 0.14, 'sine', 0.16, null, 0.15); beep(390, 0.25, 'sine', 0.16, null, 0.3); };
 
   soundBtn.addEventListener('click', () => {
@@ -398,11 +419,11 @@
   // pops more moles at once and mixes in more hazards.
   const LEVEL_MS = 9000;
   const LEVELS = [
-    { spawn: 800, up: 1050, bomb: 0.06, helmet: 0.00, flower: 0.00, double: 0.10, triple: 0.00 },
-    { spawn: 640, up: 890,  bomb: 0.08, helmet: 0.08, flower: 0.07, double: 0.25, triple: 0.00 },
-    { spawn: 510, up: 750,  bomb: 0.10, helmet: 0.10, flower: 0.10, double: 0.40, triple: 0.10 },
-    { spawn: 410, up: 630,  bomb: 0.12, helmet: 0.12, flower: 0.12, double: 0.55, triple: 0.22 },
-    { spawn: 330, up: 520,  bomb: 0.14, helmet: 0.13, flower: 0.14, double: 0.70, triple: 0.35 },
+    { spawn: 800, up: 1050, bomb: 0.07, helmet: 0.00, double: 0.10, triple: 0.00 },
+    { spawn: 640, up: 890,  bomb: 0.10, helmet: 0.10, double: 0.25, triple: 0.00 },
+    { spawn: 510, up: 750,  bomb: 0.12, helmet: 0.12, double: 0.40, triple: 0.10 },
+    { spawn: 410, up: 630,  bomb: 0.14, helmet: 0.14, double: 0.55, triple: 0.22 },
+    { spawn: 330, up: 520,  bomb: 0.16, helmet: 0.15, double: 0.70, triple: 0.35 },
   ];
   const MAX_LEVEL = LEVELS.length;
 
@@ -493,7 +514,6 @@
     if ((r -= GOLD_CHANCE) < 0) return 'gold';
     if ((r -= c.bomb) < 0) return 'bomb';
     if ((r -= c.helmet) < 0) return 'helmet';
-    if ((r -= c.flower) < 0) return 'flower';
     return 'normal';
   }
 
@@ -544,8 +564,6 @@
         hitSomething = true;
         if (h.type === 'bomb') {
           hitBomb(h);
-        } else if (h.type === 'flower') {
-          hitFlower(h);
         } else if (h.type === 'helmet' && h.hp > 1) {
           hitHelmetBlock(h);
         } else {
@@ -591,16 +609,6 @@
     popups.push({ x: h.cx, y: h.cy - MOLE_H, life: 0, text: '깡!', color: '#e8ecf3' });
     spawnStars(h.cx, h.cy - MOLE_H * 0.6, 5, '#c9cdd4');
     sClink();
-  }
-
-  function hitFlower(h) {
-    combo = 0;
-    score = Math.max(0, score - FLOWER_PENALTY);
-    h.state = 'whacked';
-    h.t = 0;
-    popups.push({ x: h.cx, y: h.cy - MOLE_H * 0.9, life: 0, text: `-${FLOWER_PENALTY}`, color: '#ff8ab0' });
-    spawnStars(h.cx, h.cy - MOLE_H * 0.6, 7, '#ffc7da');
-    sSad();
   }
 
   function hitBomb(h) {
@@ -688,7 +696,7 @@
       } else if (h.state === 'up' && h.t >= h.upDur) {
         h.state = 'falling';
         h.t = 0;
-        if (h.type !== 'bomb' && h.type !== 'flower') {
+        if (h.type !== 'bomb') {
           // An escaped mole taunts you but doesn't break the combo
           popups.push({ x: h.cx, y: h.cy - MOLE_H, life: 0, text: '휙!', color: 'rgba(255,255,255,0.55)' });
         }
@@ -883,7 +891,6 @@
     if (p <= 0.02) return;
     const whacked = h.state === 'whacked';
     const gold = h.type === 'gold';
-    const flower = h.type === 'flower';
     const bodyH = MOLE_H * p;
     const half = MOLE_W / 2;
     const bottom = h.cy + 6;
@@ -903,10 +910,6 @@
       g.addColorStop(0, '#e8b62a');
       g.addColorStop(0.5, '#ffd863');
       g.addColorStop(1, '#d8a41e');
-    } else if (flower) {
-      g.addColorStop(0, '#c97f9b');
-      g.addColorStop(0.5, '#e6a7c1');
-      g.addColorStop(1, '#bd7690');
     } else {
       g.addColorStop(0, '#7a5233');
       g.addColorStop(0.5, '#96693f');
@@ -916,7 +919,7 @@
     ctx.fill(body);
     ctx.clip(body);
 
-    const muzzleColor = gold ? '#ffedb0' : flower ? '#f6d9e4' : '#cfa878';
+    const muzzleColor = gold ? '#ffedb0' : '#cfa878';
     const faceY = top + half; // face anchored to the head
     // Muzzle
     ctx.fillStyle = muzzleColor;
@@ -924,7 +927,7 @@
     ctx.ellipse(h.cx, faceY + 11, 17, 12, 0, 0, Math.PI * 2);
     ctx.fill();
     // Nose
-    ctx.fillStyle = flower ? '#d64f7d' : '#ef6a8a';
+    ctx.fillStyle = '#ef6a8a';
     ctx.beginPath();
     ctx.ellipse(h.cx, faceY + 4.5, 6.5, 5, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -993,16 +996,21 @@
     }
 
     if (h.type === 'bomb' && !whacked) {
-      // The lit fuse on the head is the ONLY tell that this mole explodes
-      ctx.strokeStyle = '#a8814e';
-      ctx.lineWidth = 2.5;
+      // The lit fuse is the tell — big, with a pulsing glow, hard to miss
+      ctx.strokeStyle = '#6b4a2a';
+      ctx.lineWidth = 4.5;
+      ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(h.cx, top + 2);
-      ctx.quadraticCurveTo(h.cx + 5, top - 8, h.cx + 11, top - 6);
+      ctx.moveTo(h.cx, top + 3);
+      ctx.quadraticCurveTo(h.cx + 6, top - 14, h.cx + 16, top - 12);
       ctx.stroke();
       const tws = Math.random();
-      ctx.fillStyle = `rgba(255, ${180 + tws * 60}, 60, ${0.7 + tws * 0.3})`;
-      drawStarShape(h.cx + 12, top - 7, 3 + tws * 2);
+      ctx.fillStyle = `rgba(255, 140, 40, ${0.25 + tws * 0.2})`;
+      ctx.beginPath();
+      ctx.arc(h.cx + 18, top - 14, 11 + tws * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(255, ${170 + tws * 70}, 50, ${0.85 + tws * 0.15})`;
+      drawStarShape(h.cx + 18, top - 14, 7 + tws * 3);
     }
 
     if (h.type === 'helmet' && h.hp > 1 && !whacked) {
@@ -1019,21 +1027,6 @@
       ctx.fillStyle = 'rgba(255,255,255,0.4)';
       ctx.beginPath();
       ctx.ellipse(h.cx - 8, top + 7, 5, 2.5, -0.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    if (flower && !whacked) {
-      // Flower on the head marks the do-not-hit mole
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
-        ctx.fillStyle = '#ff9ec2';
-        ctx.beginPath();
-        ctx.ellipse(h.cx + Math.cos(a) * 5, top + 2 + Math.sin(a) * 5, 3.4, 3.4, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.fillStyle = '#ffb300';
-      ctx.beginPath();
-      ctx.arc(h.cx, top + 2, 2.6, 0, Math.PI * 2);
       ctx.fill();
     }
 

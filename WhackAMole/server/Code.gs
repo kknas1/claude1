@@ -17,20 +17,24 @@
  * 저장소는 스크립트 속성(PropertiesService)이라 별도 시트가 필요 없습니다.
  */
 var STORE_KEY = 'scores';
+var RESET_KEY = 'resetAt';
 var STORE_MAX = 50;
+// 관리자 키: 붙여넣을 때 꼭 원하는 비밀 문구로 바꾸세요!
+// 게임에서 버전 배지를 7번 연타하면 이 키를 물어보고, 맞으면 순위판을 비웁니다.
+var ADMIN_KEY = 'CHANGE-ME-1234';
 
 function doGet() {
   return respond({ scores: load() });
 }
 
 function doPost(e) {
-  var incoming = [];
+  var body = {};
   try {
-    var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    if (Array.isArray(body.scores)) incoming = body.scores;
+    body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
   } catch (err) {
     // malformed body -> merge nothing, still return the current board
   }
+
   var lock = LockService.getScriptLock();
   // tryLock: waitLock would throw on timeout and Apps Script turns uncaught
   // exceptions into HTML error pages with HTTP 200, breaking the JSON contract
@@ -38,12 +42,37 @@ function doPost(e) {
     return respond({ scores: load(), error: 'busy' });
   }
   try {
+    if (body.action === 'clear') {
+      if (String(body.admin || '') !== ADMIN_KEY) {
+        return respond({ error: 'unauthorized' });
+      }
+      // resetAt: 이 시각 이전의 기록은 이후 병합에서 거부됨 —
+      // 클라이언트 복제본이 지운 순위를 되살리는 것(자가복구)을 차단
+      var props = PropertiesService.getScriptProperties();
+      props.setProperty(STORE_KEY, '[]');
+      props.setProperty(RESET_KEY, String(Date.now()));
+      return respond({ scores: [], reset: true });
+    }
+
+    var incoming = Array.isArray(body.scores) ? body.scores : [];
     var merged = merge(load(), incoming);
     PropertiesService.getScriptProperties().setProperty(STORE_KEY, JSON.stringify(merged));
     return respond({ scores: merged });
   } finally {
     lock.releaseLock();
   }
+}
+
+function resetAt() {
+  var v = Number(PropertiesService.getScriptProperties().getProperty(RESET_KEY) || 0);
+  return isFinite(v) ? v : 0;
+}
+
+// 수동 초기화: 에디터에서 이 함수를 선택하고 ▶ 실행해도 됩니다
+function clearScores() {
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty(STORE_KEY, '[]');
+  props.setProperty(RESET_KEY, String(Date.now()));
 }
 
 function load() {
@@ -59,9 +88,11 @@ function load() {
 function merge(current, incoming) {
   var seen = {};
   var out = [];
+  var cutoff = resetAt();
   current.concat(incoming).forEach(function (r) {
     var c = clean(r);
     if (!c || seen[c.id]) return;
+    if (c.date < cutoff) return; // pre-reset records stay deleted
     seen[c.id] = true;
     out.push(c);
   });
