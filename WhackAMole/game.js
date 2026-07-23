@@ -328,13 +328,36 @@
 
   // Admin: reset button on the rankings screen; the key set in
   // server/Code.gs (ADMIN_KEY) still gates the actual wipe.
+  async function adminClear(key) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), BOARD_TIMEOUT_MS);
+    try {
+      const res = await fetch(BOARD_URL, {
+        method: 'POST',
+        signal: ctrl.signal,
+        cache: 'no-store',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ admin: key, action: 'clear' }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data && data.error) throw new Error(String(data.error));
+      // An outdated server ignores the clear action and replies without the
+      // reset flag — that is a failure, not a success
+      if (!data || data.reset !== true) {
+        throw new Error('서버가 예전 버전 코드예요. Apps Script에서 새 Code.gs를 붙여넣고 "배포 관리 → 새 버전"으로 배포해 주세요');
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   const adminResetBtn = document.getElementById('adminResetBtn');
   adminResetBtn.addEventListener('click', () => {
     if (!boardEnabled()) return;
     const key = prompt('관리자 키를 입력하세요');
     if (!key) return;
     ranksStatus.textContent = '초기화 중…';
-    boardRequest('POST', { admin: key, action: 'clear' })
+    adminClear(key)
       .then(() => {
         saveList(BOARD_CACHE_KEY, []);
         saveList(PENDING_KEY, []);
