@@ -37,7 +37,7 @@
     </header>
 
     <div class="stage">
-      <div class="version-badge">v1.4.1</div>
+      <div class="version-badge">v1.4.2</div>
       <canvas id="game" width="420" height="640"></canvas>
 
       <div id="overlay" class="overlay">
@@ -76,7 +76,9 @@
           </p>
           <p id="newRecord" class="record hidden">🏆 신기록!</p>
           <div id="registerBox" class="register hidden">
-            <input id="nameInput" maxlength="8" placeholder="이름 (8자)" autocomplete="off">
+            <!-- maxlength 속성 금지: iOS 사파리에서 한글 조합을 끊어 자모가
+                 낱개로 입력되는 버그가 있어 JS로 길이를 제한한다 -->
+            <input id="nameInput" placeholder="이름 (8자)" autocomplete="off">
             <button id="saveScoreBtn" class="btn small">순위 등록</button>
           </div>
           <p id="ranksTitleGO" class="ranks-title">🏅 순위 TOP 20 (이 기기)</p>
