@@ -326,21 +326,26 @@
     ranksOverlay.classList.add('hidden');
   });
 
-  // Admin: tap the version badge (menu or game-over screen only, so stray
-  // taps mid-game never interrupt), enter the key from server/Code.gs
-  // (ADMIN_KEY) to wipe the shared leaderboard.
-  const versionBadge = document.querySelector('.version-badge');
-  versionBadge.addEventListener('click', () => {
-    if (running || !boardEnabled()) return;
+  // Admin: reset button on the rankings screen; the key set in
+  // server/Code.gs (ADMIN_KEY) still gates the actual wipe.
+  const adminResetBtn = document.getElementById('adminResetBtn');
+  adminResetBtn.addEventListener('click', () => {
+    if (!boardEnabled()) return;
     const key = prompt('관리자 키를 입력하세요');
     if (!key) return;
+    ranksStatus.textContent = '초기화 중…';
     boardRequest('POST', { admin: key, action: 'clear' })
       .then(() => {
         saveList(BOARD_CACHE_KEY, []);
         saveList(PENDING_KEY, []);
+        ranksStatus.textContent = '';
+        renderList(rankListFull, [], null);
         alert('공유 순위판이 초기화됐어요');
       })
-      .catch((err) => alert('초기화 실패: ' + err.message));
+      .catch((err) => {
+        ranksStatus.textContent = '';
+        alert('초기화 실패: ' + err.message);
+      });
   });
 
   // ---------- Audio (synthesized, no asset files) ----------
