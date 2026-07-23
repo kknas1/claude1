@@ -527,6 +527,17 @@
     submitBtn.disabled = false;
   }
 
+  async function parseRankResponse(res) {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      // An HTML body here almost always means a Google login/permission page,
+      // i.e. the web app is not deployed with access "모든 사용자".
+      throw new Error(`HTTP ${res.status}, JSON 아님(권한 의심): ${text.slice(0, 40)}`);
+    }
+  }
+
   async function submitScore() {
     if (!RANK_URL || !lastScore || submitting) return;
     const name = nameInput.value.trim().slice(0, 12) || '익명';
@@ -541,7 +552,7 @@
         method: 'POST',
         body: JSON.stringify({ name, height: lastScore.height, coins: lastScore.coins }),
       });
-      const data = await res.json();
+      const data = await parseRankResponse(res);
       if (data.ok) {
         submitMsg.textContent = `등록 완료! 현재 ${data.rank}위`;
         lastScore = null;
@@ -550,7 +561,8 @@
         throw new Error(data.error || 'server error');
       }
     } catch (err) {
-      submitMsg.textContent = '등록 실패 — 네트워크를 확인하세요';
+      // Surface the real failure so it can be diagnosed from a screenshot
+      submitMsg.textContent = '등록 실패: ' + String(err && err.message || err).slice(0, 80);
       submitBtn.disabled = false;
     }
     submitting = false;
@@ -568,7 +580,7 @@
     rankList.innerHTML = '불러오는 중...';
     try {
       const res = await fetch(RANK_URL + (RANK_URL.includes('?') ? '&' : '?') + 't=' + Date.now());
-      const data = await res.json();
+      const data = await parseRankResponse(res);
       if (!data.ok) throw new Error(data.error || 'server error');
       const myName = localStorage.getItem(NAME_KEY) || '';
       const rows = data.scores.slice(0, 20).map((s, i) => {
@@ -582,7 +594,7 @@
         ? rows.join('')
         : '아직 등록된 기록이 없어요.<br>첫 번째로 이름을 올려보세요!';
     } catch (err) {
-      rankList.textContent = '랭킹을 불러오지 못했어요 — 네트워크를 확인하세요';
+      rankList.textContent = '랭킹 조회 실패: ' + String(err && err.message || err).slice(0, 80);
     }
   }
 
