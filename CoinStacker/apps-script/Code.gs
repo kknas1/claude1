@@ -1,21 +1,36 @@
 /**
  * 동전쌓기 공유 랭킹 서버 (Google Apps Script)
  *
- * 설치 방법:
- * 1. https://sheets.new 에서 새 구글 시트 생성
- * 2. 메뉴: 확장 프로그램 → Apps Script
- * 3. 이 파일 내용 전체를 붙여넣고 저장
- * 4. 우상단 "배포" → "새 배포" → 유형 "웹 앱"
- *    - 실행 계정: 나
- *    - 액세스 권한: 모든 사용자
- * 5. "배포" 클릭 → 권한 승인 → 웹 앱 URL(…/exec) 복사
- * 6. 그 URL을 game.js 의 RANK_URL 에 넣으면 끝
+ * 독립형 스크립트/시트 연결형 어느 쪽이든 동작한다:
+ * 시트에 바인딩돼 있으면 그 시트를 쓰고, 아니면 최초 호출 때
+ * "동전쌓기 랭킹" 스프레드시트를 자동 생성해 ID를 저장해 둔다.
+ *
+ * 설치: 코드 붙여넣고 저장 → 배포 → 배포 관리 → 수정(연필) →
+ * 버전 "새 버전" + 액세스 "모든 사용자" → 배포 (URL 유지됨)
  */
 
 const SHEET_NAME = 'scores';
 
+function getSpreadsheet_() {
+  const props = PropertiesService.getScriptProperties();
+  const saved = props.getProperty('SHEET_ID');
+  if (saved) {
+    try {
+      return SpreadsheetApp.openById(saved);
+    } catch (ignored) {} // 삭제된 경우 아래에서 새로 확보
+  }
+  const active = SpreadsheetApp.getActiveSpreadsheet(); // 시트 연결형이면 존재
+  if (active) {
+    props.setProperty('SHEET_ID', active.getId());
+    return active;
+  }
+  const created = SpreadsheetApp.create('동전쌓기 랭킹'); // 독립형이면 자동 생성
+  props.setProperty('SHEET_ID', created.getId());
+  return created;
+}
+
 function getSheet_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSpreadsheet_();
   let sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) {
     sh = ss.insertSheet(SHEET_NAME);
@@ -34,12 +49,10 @@ function doGet() {
   try {
     const rows = getSheet_().getDataRange().getValues().slice(1);
     const scores = rows
-      .map((r) => ({
-        name: String(r[1]),
-        height: Number(r[2]) || 0,
-        coins: Number(r[3]) || 0,
-      }))
-      .sort((a, b) => b.height - a.height || b.coins - a.coins)
+      .map(function (r) {
+        return { name: String(r[1]), height: Number(r[2]) || 0, coins: Number(r[3]) || 0 };
+      })
+      .sort(function (a, b) { return b.height - a.height || b.coins - a.coins; })
       .slice(0, 50);
     return json_({ ok: true, scores: scores });
   } catch (err) {
@@ -60,11 +73,8 @@ function doPost(e) {
 
     const sh = getSheet_();
     sh.appendRow([new Date(), name, height, coins]);
-    const higher = sh
-      .getDataRange()
-      .getValues()
-      .slice(1)
-      .filter((r) => Number(r[2]) > height).length;
+    const higher = sh.getDataRange().getValues().slice(1)
+      .filter(function (r) { return Number(r[2]) > height; }).length;
     return json_({ ok: true, rank: higher + 1 });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
