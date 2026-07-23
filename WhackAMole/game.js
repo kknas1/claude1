@@ -117,7 +117,7 @@
   // ---------- Leaderboard ----------
   // BOARD_URL: deployed Google Apps Script web-app endpoint everyone shares
   // (see server/Code.gs). Empty string = ranks stay on this device only.
-  const BOARD_URL = '';
+  const BOARD_URL = 'https://script.google.com/macros/s/AKfycbytvivyO2RVwDCzpwsIA_kgC52yclOQWb43D_chB-hXDH3-IcjqnleNRC-rS2hHLB7MxA/exec';
   const BOARD_CACHE_KEY = 'whackmole.board.cache';
   const BOARD_TIMEOUT_MS = 25000; // generous: free backends wake up slowly
   const STORE_MAX = 50;
