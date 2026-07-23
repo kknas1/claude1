@@ -30,7 +30,6 @@
   const PLATFORM_X = (W - PLATFORM_W) / 2;
   const GRAVITY = 0.55;
   const SWING_SPEED = 0.018;
-  const KEY_SPEED = 6;
   const MIN_OVERLAP_FRAC = 0.30; // need at least 30% horizontal overlap to stay
   const PX_PER_CM = 4;
   const SPAWN_SCREEN_Y = 70;     // where a new coin appears (screen space)
@@ -54,8 +53,6 @@
   let endingTimer = 0;
   let endedFlag = false;
   let coinIndex = 0;
-  let keyLeft = false, keyRight = false;
-  let dragX = null;
 
   function loadBest() {
     const v = parseInt(localStorage.getItem(BEST_KEY) || '0', 10);
@@ -183,20 +180,10 @@
     // Active coin behavior
     if (activeCoin) {
       if (activeCoin.vy === 0 && !activeCoin.fallingOff) {
-        // swinging at top
+        // Swinging at top — pure timing game, the player cannot steer it
         swingT += SWING_SPEED * (60 * dt);
         const swingRange = Math.min(W * 0.42, 160);
-        const baseX = W / 2 + Math.sin(swingT) * swingRange;
-        // Keyboard / drag override
-        if (dragX !== null) {
-          activeCoin.x = dragX;
-        } else if (keyLeft || keyRight) {
-          activeCoin.x += (keyRight ? KEY_SPEED : 0) - (keyLeft ? KEY_SPEED : 0);
-        } else {
-          activeCoin.x = baseX;
-        }
-        // Clamp
-        activeCoin.x = Math.max(activeCoin.r, Math.min(W - activeCoin.r, activeCoin.x));
+        activeCoin.x = W / 2 + Math.sin(swingT) * swingRange;
         // Shine animation
         activeCoin.shineSeed += 0.04;
       } else {
@@ -440,13 +427,6 @@
     ctx.font = 'bold 16px -apple-system, "Noto Sans KR", sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText(`${cm} cm`, W - 14, y);
-    // marker line
-    ctx.strokeStyle = 'rgba(255,204,77,0.45)';
-    ctx.setLineDash([3, 5]);
-    ctx.beginPath();
-    ctx.moveTo(0, y + 6);
-    ctx.lineTo(W, y + 6);
-    ctx.stroke();
     ctx.restore();
   }
 
@@ -499,9 +479,7 @@
     // Don't hijack keys while typing a nickname or browsing the rank modal
     if (e.target && e.target.tagName === 'INPUT') return;
     if (!rankModal.classList.contains('hidden')) return;
-    if (e.code === 'ArrowLeft') { keyLeft = true; e.preventDefault(); }
-    else if (e.code === 'ArrowRight') { keyRight = true; e.preventDefault(); }
-    else if (e.code === 'Space' || e.code === 'ArrowDown' || e.code === 'Enter') {
+    if (e.code === 'Space' || e.code === 'ArrowDown' || e.code === 'Enter') {
       if (!running && !endedFlag && overlay.classList.contains('hidden') === false) {
         startGame();
       } else if (running) {
@@ -512,43 +490,12 @@
       e.preventDefault();
     }
   });
-  document.addEventListener('keyup', (e) => {
-    if (e.code === 'ArrowLeft') keyLeft = false;
-    else if (e.code === 'ArrowRight') keyRight = false;
-  });
 
-  // Touch / mouse on canvas
-  function eventX(e) {
-    const rect = canvas.getBoundingClientRect();
-    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-    return cx * (W / rect.width);
-  }
-  let pressed = false;
-  let pressStart = 0;
-  let pressStartX = 0;
+  // Any tap on the canvas drops the coin — timing is the whole game
   canvas.addEventListener('pointerdown', (e) => {
     if (!running) return;
-    pressed = true;
-    pressStart = performance.now();
-    pressStartX = eventX(e);
-    dragX = pressStartX;
-    canvas.setPointerCapture(e.pointerId);
-  });
-  canvas.addEventListener('pointermove', (e) => {
-    if (!pressed) return;
-    dragX = eventX(e);
-  });
-  canvas.addEventListener('pointerup', (e) => {
-    if (!pressed) return;
-    pressed = false;
-    const dt = performance.now() - pressStart;
-    const moved = Math.abs(eventX(e) - pressStartX);
-    dragX = null;
-    if (dt < 300 && moved < 12) drop();
-  });
-  canvas.addEventListener('pointercancel', () => {
-    pressed = false;
-    dragX = null;
+    e.preventDefault();
+    drop();
   });
 
   dropBtn.addEventListener('click', drop);
