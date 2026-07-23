@@ -37,21 +37,24 @@
   const ranksTitleGO = document.getElementById('ranksTitleGO');
 
   const TOTAL_TIME = 45000;
-  const HOLE_X = [80, 210, 340];
-  const HOLE_Y = [235, 390, 545];
-  const HOLE_RX = 54;
-  const HOLE_RY = 20;
-  const MOLE_W = 74;
-  const MOLE_H = 92;
-  const BOMB_H = 66;
+  const HOLE_X = [53, 158, 262, 367];
+  const HOLE_Y = [215, 345, 475, 605];
+  const HOLE_RX = 42;
+  const HOLE_RY = 15;
+  const MOLE_W = 58;
+  const MOLE_H = 72;
+  const BOMB_H = 54;
   const RISE_MS = 130;
   const FALL_MS = 170;
   const WHACK_MS = 320;
-  const HIT_HALF_W = 52;
+  const HIT_HALF_W = 40;
   const NORMAL_PTS = 10;
   const GOLD_PTS = 30;
+  const HELMET_PTS = 20;
+  const FLOWER_PENALTY = 20;
   const BOMB_PENALTY = 30;
-  const GOLD_CHANCE = 0.10;
+  const BOMB_TIME_MS = 2000;
+  const GOLD_CHANCE = 0.09;
 
   const BEST_KEY = 'whackmole.best';
   const MUTE_KEY = 'whackmole.muted';
@@ -59,11 +62,11 @@
   const NAME_KEY = 'whackmole.name';
   const MAX_RANKS = 20;
 
-  /** @type {{cx:number,cy:number,state:string,type:string,t:number,upDur:number}[]} */
+  /** @type {{cx:number,cy:number,state:string,type:string,t:number,upDur:number,hp:number}[]} */
   const holes = [];
   for (const cy of HOLE_Y) {
     for (const cx of HOLE_X) {
-      holes.push({ cx, cy, state: 'empty', type: 'normal', t: 0, upDur: 0 });
+      holes.push({ cx, cy, state: 'empty', type: 'normal', t: 0, upDur: 0, hp: 1 });
     }
   }
 
@@ -119,6 +122,7 @@
   // (see server/Code.gs). Empty string = ranks stay on this device only.
   const BOARD_URL = 'https://script.google.com/macros/s/AKfycbytvivyO2RVwDCzpwsIA_kgC52yclOQWb43D_chB-hXDH3-IcjqnleNRC-rS2hHLB7MxA/exec';
   const BOARD_CACHE_KEY = 'whackmole.board.cache';
+  const PENDING_KEY = 'whackmole.board.pending';
   const BOARD_TIMEOUT_MS = 25000; // generous: free backends wake up slowly
   const STORE_MAX = 50;
 
@@ -153,6 +157,8 @@
       const res = await fetch(BOARD_URL, opts);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
+      // The server reports lock contention as {error} with a 200 status
+      if (data && data.error) throw new Error(String(data.error));
       const scores = (Array.isArray(data.scores) ? data.scores : []).slice();
       scores.sort(byScore);
       return scores.slice(0, STORE_MAX);
@@ -161,19 +167,23 @@
     }
   }
 
+  // Callers persist the cache themselves (guarded by a request generation)
+  // so a stale response can never overwrite a newer replica.
   async function fetchBoard() {
     let scores = await boardRequest('GET');
-    // Server storage was reset but this device still holds a replica: heal it
-    if (!scores.length && loadBoardCache().length) {
-      scores = await boardRequest('POST', { scores: loadBoardCache() });
+    const pending = loadList(PENDING_KEY);
+    // Flush queued offline registrations; also heal a wiped server from replica
+    if (pending.length || (!scores.length && loadBoardCache().length)) {
+      scores = await boardRequest('POST', { scores: [...pending, ...loadBoardCache()] });
+      saveList(PENDING_KEY, []);
     }
-    saveList(BOARD_CACHE_KEY, scores);
     return scores;
   }
   async function submitBoard(entry) {
-    // Send our replica along so a wiped server gets its history back too
-    const scores = await boardRequest('POST', { scores: [entry, ...loadBoardCache()] });
-    saveList(BOARD_CACHE_KEY, scores);
+    // Send queued entries and our replica along so nothing is ever lost
+    const pending = loadList(PENDING_KEY);
+    const scores = await boardRequest('POST', { scores: [entry, ...pending, ...loadBoardCache()] });
+    saveList(PENDING_KEY, []);
     return scores;
   }
 
@@ -225,20 +235,28 @@
     }
   }
 
+  // Request generation: only the newest in-flight request may paint the UI
+  // or persist the replica, so slow stale responses can't undo fresh ones.
+  let boardGen = 0;
+
   function showRanks(el, statusEl, highlightId) {
     if (!boardEnabled()) {
       statusEl.textContent = '';
       renderList(el, loadRanks(), highlightId);
       return;
     }
+    const gen = ++boardGen;
     statusEl.textContent = '순위 불러오는 중…';
     el.innerHTML = '';
     fetchBoard()
       .then((scores) => {
+        if (gen !== boardGen) return;
+        saveList(BOARD_CACHE_KEY, scores);
         statusEl.textContent = '';
         renderList(el, scores, highlightId);
       })
       .catch(() => {
+        if (gen !== boardGen) return;
         statusEl.textContent = '연결 실패 — 마지막으로 받아둔 순위예요';
         renderList(el, mergedLocalView(), highlightId);
       });
@@ -268,19 +286,30 @@
       renderList(rankList, loadRanks(), entry.id);
       return;
     }
+    const gen = ++boardGen; // also invalidates the game-over screen's GET
     ranksStatusGO.textContent = '순위 올리는 중…';
     submitBoard(entry)
       .then((scores) => {
+        if (gen !== boardGen) return;
+        saveList(BOARD_CACHE_KEY, scores);
         ranksStatusGO.textContent = '';
         renderList(rankList, scores, entry.id);
       })
       .catch(() => {
-        ranksStatusGO.textContent = '연결 실패 — 일단 이 기기에 저장했어요';
+        // Queue it: the next successful board request uploads it automatically
+        const pending = loadList(PENDING_KEY);
+        pending.push(entry);
+        saveList(PENDING_KEY, pending.slice(-20));
+        if (gen !== boardGen) return;
+        ranksStatusGO.textContent = '연결 실패 — 나중에 자동으로 올라가요';
         renderList(rankList, mergedLocalView(), entry.id);
       });
   }
   saveScoreBtn.addEventListener('click', registerScore);
   nameInput.addEventListener('keydown', (e) => {
+    // Korean IME fires Enter while composing; registering then would cut
+    // the last syllable off the name
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter') registerScore();
   });
 
@@ -343,6 +372,8 @@
   const sTick = () => beep(1200, 0.04, 'square', 0.1);
   const sStart = () => { beep(520, 0.08, 'sine', 0.15); beep(780, 0.12, 'sine', 0.15, null, 0.09); };
   const sLevelUp = () => { beep(620, 0.07, 'square', 0.14); beep(830, 0.07, 'square', 0.14, null, 0.08); beep(1100, 0.12, 'square', 0.14, null, 0.16); };
+  const sClink = () => { beep(1500, 0.05, 'square', 0.12, 1100); noiseBurst(0.03, 0.05); };
+  const sSad = () => beep(420, 0.22, 'sine', 0.16, 190);
   const sEnd = () => { beep(660, 0.14, 'sine', 0.16); beep(520, 0.14, 'sine', 0.16, null, 0.15); beep(390, 0.25, 'sine', 0.16, null, 0.3); };
 
   soundBtn.addEventListener('click', () => {
@@ -358,14 +389,14 @@
   const easeOut = (t) => 1 - (1 - t) * (1 - t);
 
   // Level up every LEVEL_MS; each level spawns faster, hides quicker,
-  // pops more moles at once and mixes in more bombs.
+  // pops more moles at once and mixes in more hazards.
   const LEVEL_MS = 9000;
   const LEVELS = [
-    { spawn: 900, up: 1150, bomb: 0.06, double: 0.00, triple: 0.00 },
-    { spawn: 730, up: 970,  bomb: 0.08, double: 0.18, triple: 0.00 },
-    { spawn: 580, up: 810,  bomb: 0.10, double: 0.32, triple: 0.00 },
-    { spawn: 460, up: 670,  bomb: 0.13, double: 0.48, triple: 0.12 },
-    { spawn: 370, up: 550,  bomb: 0.16, double: 0.62, triple: 0.28 },
+    { spawn: 800, up: 1050, bomb: 0.06, helmet: 0.00, flower: 0.00, double: 0.10, triple: 0.00 },
+    { spawn: 640, up: 890,  bomb: 0.08, helmet: 0.08, flower: 0.07, double: 0.25, triple: 0.00 },
+    { spawn: 510, up: 750,  bomb: 0.10, helmet: 0.10, flower: 0.10, double: 0.40, triple: 0.10 },
+    { spawn: 410, up: 630,  bomb: 0.12, helmet: 0.12, flower: 0.12, double: 0.55, triple: 0.22 },
+    { spawn: 330, up: 520,  bomb: 0.14, helmet: 0.13, flower: 0.14, double: 0.70, triple: 0.35 },
   ];
   const MAX_LEVEL = LEVELS.length;
 
@@ -379,6 +410,7 @@
     let t = levelCfg().up;
     if (type === 'gold') t *= 0.72;
     if (type === 'bomb') t *= 1.1;
+    if (type === 'helmet') t *= 1.25; // needs two hits, stays a touch longer
     return t;
   }
 
@@ -450,9 +482,12 @@
   }
 
   function pickType() {
-    const r = Math.random();
-    if (r < GOLD_CHANCE) return 'gold';
-    if (r < GOLD_CHANCE + levelCfg().bomb) return 'bomb';
+    const c = levelCfg();
+    let r = Math.random();
+    if ((r -= GOLD_CHANCE) < 0) return 'gold';
+    if ((r -= c.bomb) < 0) return 'bomb';
+    if ((r -= c.helmet) < 0) return 'helmet';
+    if ((r -= c.flower) < 0) return 'flower';
     return 'normal';
   }
 
@@ -463,6 +498,7 @@
     h.type = pickType();
     h.state = 'rising';
     h.t = 0;
+    h.hp = h.type === 'helmet' ? 2 : 1;
     h.upDur = upTime(h.type);
   }
 
@@ -502,6 +538,10 @@
         hitSomething = true;
         if (h.type === 'bomb') {
           hitBomb(h);
+        } else if (h.type === 'flower') {
+          hitFlower(h);
+        } else if (h.type === 'helmet' && h.hp > 1) {
+          hitHelmetBlock(h);
         } else {
           hitMole(h);
         }
@@ -521,7 +561,7 @@
   function hitMole(h) {
     combo += 1;
     const bonus = Math.min(combo - 1, 10) * 2;
-    const base = h.type === 'gold' ? GOLD_PTS : NORMAL_PTS;
+    const base = h.type === 'gold' ? GOLD_PTS : h.type === 'helmet' ? HELMET_PTS : NORMAL_PTS;
     const pts = base + bonus;
     score += pts;
     molesHit += 1;
@@ -538,9 +578,30 @@
     if (h.type === 'gold') sGold(); else sHit();
   }
 
+  function hitHelmetBlock(h) {
+    // First hit only knocks the hard hat off
+    h.hp = 1;
+    h.t = Math.max(0, h.t - 300); // give a beat to land the finishing hit
+    popups.push({ x: h.cx, y: h.cy - MOLE_H, life: 0, text: '깡!', color: '#e8ecf3' });
+    spawnStars(h.cx, h.cy - MOLE_H * 0.6, 5, '#c9cdd4');
+    sClink();
+  }
+
+  function hitFlower(h) {
+    combo = 0;
+    score = Math.max(0, score - FLOWER_PENALTY);
+    h.state = 'whacked';
+    h.t = 0;
+    popups.push({ x: h.cx, y: h.cy - MOLE_H * 0.9, life: 0, text: `-${FLOWER_PENALTY}`, color: '#ff8ab0' });
+    spawnStars(h.cx, h.cy - MOLE_H * 0.6, 7, '#ffc7da');
+    sSad();
+  }
+
   function hitBomb(h) {
     combo = 0;
     score = Math.max(0, score - BOMB_PENALTY);
+    // A bomb also burns 2 seconds off the clock
+    elapsed = Math.min(TOTAL_TIME - 1, elapsed + BOMB_TIME_MS);
     h.state = 'whacked';
     h.t = 0;
     shakeT = 300;
@@ -548,6 +609,7 @@
 
     const py = h.cy - BOMB_H * 0.7;
     popups.push({ x: h.cx, y: py, life: 0, text: `-${BOMB_PENALTY}`, color: '#ff5566' });
+    popups.push({ x: W / 2, y: 92, life: 0, text: '⏱ -2초', color: '#ff5566' });
     for (let i = 0; i < 16; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 1.5 + Math.random() * 3.5;
@@ -620,7 +682,7 @@
       } else if (h.state === 'up' && h.t >= h.upDur) {
         h.state = 'falling';
         h.t = 0;
-        if (h.type !== 'bomb') {
+        if (h.type !== 'bomb' && h.type !== 'flower') {
           // An escaped mole taunts you but doesn't break the combo
           popups.push({ x: h.cx, y: h.cy - MOLE_H, life: 0, text: '휙!', color: 'rgba(255,255,255,0.55)' });
         }
@@ -813,9 +875,10 @@
     if (p <= 0.02) return;
     const whacked = h.state === 'whacked';
     const gold = h.type === 'gold';
+    const flower = h.type === 'flower';
     const bodyH = MOLE_H * p;
     const half = MOLE_W / 2;
-    const bottom = h.cy + 8;
+    const bottom = h.cy + 6;
     const top = bottom - bodyH;
 
     ctx.save();
@@ -832,6 +895,10 @@
       g.addColorStop(0, '#e8b62a');
       g.addColorStop(0.5, '#ffd863');
       g.addColorStop(1, '#d8a41e');
+    } else if (flower) {
+      g.addColorStop(0, '#c97f9b');
+      g.addColorStop(0.5, '#e6a7c1');
+      g.addColorStop(1, '#bd7690');
     } else {
       g.addColorStop(0, '#7a5233');
       g.addColorStop(0.5, '#96693f');
@@ -841,87 +908,119 @@
     ctx.fill(body);
     ctx.clip(body);
 
+    const muzzleColor = gold ? '#ffedb0' : flower ? '#f6d9e4' : '#cfa878';
     const faceY = top + half; // face anchored to the head
     // Muzzle
-    ctx.fillStyle = gold ? '#ffedb0' : '#cfa878';
+    ctx.fillStyle = muzzleColor;
     ctx.beginPath();
-    ctx.ellipse(h.cx, faceY + 14, 22, 16, 0, 0, Math.PI * 2);
+    ctx.ellipse(h.cx, faceY + 11, 17, 12, 0, 0, Math.PI * 2);
     ctx.fill();
     // Nose
-    ctx.fillStyle = '#ef6a8a';
+    ctx.fillStyle = flower ? '#d64f7d' : '#ef6a8a';
     ctx.beginPath();
-    ctx.ellipse(h.cx, faceY + 6, 8, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(h.cx, faceY + 4.5, 6.5, 5, 0, 0, Math.PI * 2);
     ctx.fill();
     // Whiskers
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.3;
     ctx.beginPath();
     for (const s of [-1, 1]) {
-      ctx.moveTo(h.cx + s * 12, faceY + 10);
-      ctx.lineTo(h.cx + s * 30, faceY + 6);
-      ctx.moveTo(h.cx + s * 12, faceY + 14);
-      ctx.lineTo(h.cx + s * 30, faceY + 15);
+      ctx.moveTo(h.cx + s * 10, faceY + 8);
+      ctx.lineTo(h.cx + s * 24, faceY + 5);
+      ctx.moveTo(h.cx + s * 10, faceY + 11);
+      ctx.lineTo(h.cx + s * 24, faceY + 12);
     }
     ctx.stroke();
 
     if (whacked) {
       // X eyes
       ctx.strokeStyle = '#2b1c10';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
       for (const s of [-1, 1]) {
-        const ex = h.cx + s * 15;
-        const ey = faceY - 6;
+        const ex = h.cx + s * 12;
+        const ey = faceY - 5;
         ctx.beginPath();
-        ctx.moveTo(ex - 4, ey - 4); ctx.lineTo(ex + 4, ey + 4);
-        ctx.moveTo(ex + 4, ey - 4); ctx.lineTo(ex - 4, ey + 4);
+        ctx.moveTo(ex - 3.2, ey - 3.2); ctx.lineTo(ex + 3.2, ey + 3.2);
+        ctx.moveTo(ex + 3.2, ey - 3.2); ctx.lineTo(ex - 3.2, ey + 3.2);
         ctx.stroke();
       }
     } else {
       ctx.fillStyle = '#241812';
       for (const s of [-1, 1]) {
         ctx.beginPath();
-        ctx.arc(h.cx + s * 15, faceY - 6, 4.5, 0, Math.PI * 2);
+        ctx.arc(h.cx + s * 12, faceY - 5, 3.8, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#241812';
       }
       // Eye glints
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
       for (const s of [-1, 1]) {
         ctx.beginPath();
-        ctx.arc(h.cx + s * 15 + 1.5, faceY - 7.5, 1.5, 0, Math.PI * 2);
+        ctx.arc(h.cx + s * 12 + 1.2, faceY - 6.2, 1.3, 0, Math.PI * 2);
         ctx.fill();
       }
       // Front teeth
       ctx.fillStyle = '#fffdf5';
-      ctx.fillRect(h.cx - 5, faceY + 18, 4.5, 6);
-      ctx.fillRect(h.cx + 0.5, faceY + 18, 4.5, 6);
+      ctx.fillRect(h.cx - 4, faceY + 14, 3.6, 5);
+      ctx.fillRect(h.cx + 0.4, faceY + 14, 3.6, 5);
     }
 
     // Blush
     ctx.fillStyle = 'rgba(255, 120, 140, 0.25)';
     for (const s of [-1, 1]) {
       ctx.beginPath();
-      ctx.ellipse(h.cx + s * 26, faceY + 6, 7, 4.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(h.cx + s * 20, faceY + 5, 5.5, 3.5, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
 
     // Paws grabbing the rim once fully up
     if (p > 0.85 && !whacked) {
-      ctx.fillStyle = gold ? '#ffedb0' : '#cfa878';
+      ctx.fillStyle = muzzleColor;
       for (const s of [-1, 1]) {
         ctx.beginPath();
-        ctx.ellipse(h.cx + s * (half - 4), h.cy + 2, 9, 6, s * 0.3, 0, Math.PI * 2);
+        ctx.ellipse(h.cx + s * (half - 3), h.cy + 2, 7, 5, s * 0.3, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+
+    if (h.type === 'helmet' && h.hp > 1 && !whacked) {
+      // Hard hat: needs one hit to knock off
+      ctx.fillStyle = '#f5b91e';
+      ctx.beginPath();
+      ctx.arc(h.cx, top + 15, half - 4, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#d99b06';
+      ctx.beginPath();
+      ctx.ellipse(h.cx, top + 15, half + 2, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(h.cx - 8, top + 7, 5, 2.5, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (flower && !whacked) {
+      // Flower on the head marks the do-not-hit mole
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+        ctx.fillStyle = '#ff9ec2';
+        ctx.beginPath();
+        ctx.ellipse(h.cx + Math.cos(a) * 5, top + 2 + Math.sin(a) * 5, 3.4, 3.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffb300';
+      ctx.beginPath();
+      ctx.arc(h.cx, top + 2, 2.6, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     if (gold && !whacked) {
       // Sparkle so the bonus mole reads at a glance
       const tw = (Math.sin(elapsed / 120 + h.cx) + 1) / 2;
       ctx.fillStyle = `rgba(255, 255, 210, ${0.4 + tw * 0.6})`;
-      drawStarShape(h.cx + half - 8, top + 6, 5 + tw * 2);
+      drawStarShape(h.cx + half - 6, top + 5, 4 + tw * 2);
     }
   }
 
@@ -930,8 +1029,8 @@
     if (p <= 0.02) return;
     const exploded = h.state === 'whacked';
     const bottom = h.cy + 6;
-    const cy = bottom - BOMB_H * p + 26;
-    const r = 26;
+    const cy = bottom - BOMB_H * p + 20;
+    const r = 20;
 
     if (exploded) {
       // Expanding flash ring instead of the bomb body
@@ -939,12 +1038,12 @@
       ctx.strokeStyle = `rgba(255, 170, 60, ${1 - k})`;
       ctx.lineWidth = 6 * (1 - k) + 1;
       ctx.beginPath();
-      ctx.arc(h.cx, cy, r + k * 46, 0, Math.PI * 2);
+      ctx.arc(h.cx, cy, r + k * 40, 0, Math.PI * 2);
       ctx.stroke();
       return;
     }
 
-    const g = ctx.createRadialGradient(h.cx - 8, cy - 8, 4, h.cx, cy, r + 4);
+    const g = ctx.createRadialGradient(h.cx - 6, cy - 6, 3, h.cx, cy, r + 4);
     g.addColorStop(0, '#5a5a66');
     g.addColorStop(1, '#17171d');
     ctx.fillStyle = g;
@@ -953,20 +1052,20 @@
     ctx.fill();
     // Cap and fuse
     ctx.fillStyle = '#3a3a44';
-    ctx.fillRect(h.cx - 7, cy - r - 8, 14, 10);
+    ctx.fillRect(h.cx - 6, cy - r - 7, 12, 9);
     ctx.strokeStyle = '#a8814e';
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(h.cx, cy - r - 8);
-    ctx.quadraticCurveTo(h.cx + 10, cy - r - 18, h.cx + 18, cy - r - 14);
+    ctx.moveTo(h.cx, cy - r - 7);
+    ctx.quadraticCurveTo(h.cx + 8, cy - r - 15, h.cx + 14, cy - r - 11);
     ctx.stroke();
     // Spark
     const tw = Math.random();
     ctx.fillStyle = `rgba(255, ${180 + tw * 60}, 60, ${0.7 + tw * 0.3})`;
-    drawStarShape(h.cx + 19, cy - r - 15, 5 + tw * 3);
+    drawStarShape(h.cx + 15, cy - r - 12, 4 + tw * 3);
     // Skull-lite warning glyph
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.font = '800 17px -apple-system, sans-serif';
+    ctx.font = '800 14px -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('!', h.cx, cy + 1);

@@ -32,7 +32,11 @@ function doPost(e) {
     // malformed body -> merge nothing, still return the current board
   }
   var lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  // tryLock: waitLock would throw on timeout and Apps Script turns uncaught
+  // exceptions into HTML error pages with HTTP 200, breaking the JSON contract
+  if (!lock.tryLock(10000)) {
+    return respond({ scores: load(), error: 'busy' });
+  }
   try {
     var merged = merge(load(), incoming);
     PropertiesService.getScriptProperties().setProperty(STORE_KEY, JSON.stringify(merged));

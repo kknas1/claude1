@@ -151,6 +151,11 @@ body {
 .panel {
   width: 86%;
   max-width: 360px;
+  /* Long panels (game over + ranks) must scroll instead of clipping the
+     retry button off small screens like the iPhone SE */
+  max-height: 96%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: linear-gradient(180deg, #1c4a22, #0c2210);
   border: 1px solid rgba(255, 213, 77, 0.25);
   border-radius: 18px;
