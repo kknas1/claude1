@@ -31,6 +31,10 @@
   const ranksOverlay = document.getElementById('ranksOverlay');
   const closeRanksBtn = document.getElementById('closeRanksBtn');
   const rankListFull = document.getElementById('rankListFull');
+  const ranksStatus = document.getElementById('ranksStatus');
+  const ranksStatusGO = document.getElementById('ranksStatusGO');
+  const ranksLead = document.getElementById('ranksLead');
+  const ranksTitleGO = document.getElementById('ranksTitleGO');
 
   const TOTAL_TIME = 45000;
   const HOLE_X = [80, 210, 340];
@@ -110,28 +114,85 @@
     try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* private mode */ }
   }
 
-  // ---------- Local leaderboard (stored on this device) ----------
-  function loadRanks() {
+  // ---------- Leaderboard ----------
+  // BOARD_URL: deployed Google Apps Script web-app endpoint everyone shares
+  // (see server/Code.gs). Empty string = ranks stay on this device only.
+  const BOARD_URL = '';
+  const BOARD_CACHE_KEY = 'whackmole.board.cache';
+  const BOARD_TIMEOUT_MS = 25000; // generous: free backends wake up slowly
+  const STORE_MAX = 50;
+
+  const boardEnabled = () => BOARD_URL.length > 0;
+  const byScore = (a, b) => (b.score - a.score) || ((a.date || 0) - (b.date || 0));
+
+  function loadList(key) {
     try {
-      const v = JSON.parse(localStorage.getItem(RANKS_KEY) || '[]');
+      const v = JSON.parse(localStorage.getItem(key) || '[]');
       return Array.isArray(v) ? v : [];
     } catch (e) {
       return [];
     }
   }
-  function saveRanks(ranks) {
-    try { localStorage.setItem(RANKS_KEY, JSON.stringify(ranks)); } catch (e) { /* private mode */ }
+  function saveList(key, list) {
+    try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) { /* private mode */ }
   }
-  function rankQualifies(s) {
-    if (s <= 0) return false;
-    const ranks = loadRanks();
-    return ranks.length < MAX_RANKS || s > ranks[ranks.length - 1].score;
+  const loadRanks = () => loadList(RANKS_KEY);
+  const loadBoardCache = () => loadList(BOARD_CACHE_KEY);
+
+  async function boardRequest(method, bodyObj) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), BOARD_TIMEOUT_MS);
+    try {
+      const opts = { method, signal: ctrl.signal, cache: 'no-store' };
+      if (bodyObj) {
+        // text/plain keeps this a "simple request": no CORS preflight,
+        // which Apps Script web apps cannot answer
+        opts.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+        opts.body = JSON.stringify(bodyObj);
+      }
+      const res = await fetch(BOARD_URL, opts);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const scores = (Array.isArray(data.scores) ? data.scores : []).slice();
+      scores.sort(byScore);
+      return scores.slice(0, STORE_MAX);
+    } finally {
+      clearTimeout(timer);
+    }
   }
-  function renderRanks(highlight, listEl) {
-    const el = listEl || rankList;
-    const ranks = loadRanks();
+
+  async function fetchBoard() {
+    let scores = await boardRequest('GET');
+    // Server storage was reset but this device still holds a replica: heal it
+    if (!scores.length && loadBoardCache().length) {
+      scores = await boardRequest('POST', { scores: loadBoardCache() });
+    }
+    saveList(BOARD_CACHE_KEY, scores);
+    return scores;
+  }
+  async function submitBoard(entry) {
+    // Send our replica along so a wiped server gets its history back too
+    const scores = await boardRequest('POST', { scores: [entry, ...loadBoardCache()] });
+    saveList(BOARD_CACHE_KEY, scores);
+    return scores;
+  }
+
+  // Offline view: whatever we saw from the server last, plus local records
+  function mergedLocalView() {
+    const seen = new Set();
+    const all = [...loadBoardCache(), ...loadRanks()].filter((r) => {
+      const k = r.id || `${r.name}|${r.score}|${r.date}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    all.sort(byScore);
+    return all.slice(0, STORE_MAX);
+  }
+
+  function renderList(el, scores, highlightId) {
     el.innerHTML = '';
-    if (!ranks.length) {
+    if (!scores.length) {
       const li = document.createElement('li');
       li.className = 'empty';
       li.textContent = '아직 기록이 없어요';
@@ -139,9 +200,9 @@
       return;
     }
     const medals = ['🥇', '🥈', '🥉'];
-    ranks.forEach((r, i) => {
+    const addRow = (r, i) => {
       const li = document.createElement('li');
-      if (r === highlight) li.className = 'me';
+      if (highlightId && r.id === highlightId) li.className = 'me';
       const who = document.createElement('span');
       who.textContent = `${medals[i] || (i + 1) + '위'} ${r.name}`;
       const pts = document.createElement('span');
@@ -149,19 +210,74 @@
       li.appendChild(who);
       li.appendChild(pts);
       el.appendChild(li);
-    });
+    };
+    scores.slice(0, MAX_RANKS).forEach(addRow);
+    // My fresh record fell below the visible cut: still show where it landed
+    if (highlightId) {
+      const idx = scores.findIndex((r) => r.id === highlightId);
+      if (idx >= MAX_RANKS) {
+        const gap = document.createElement('li');
+        gap.className = 'empty';
+        gap.textContent = '⋯';
+        el.appendChild(gap);
+        addRow(scores[idx], idx);
+      }
+    }
   }
+
+  function showRanks(el, statusEl, highlightId) {
+    if (!boardEnabled()) {
+      statusEl.textContent = '';
+      renderList(el, loadRanks(), highlightId);
+      return;
+    }
+    statusEl.textContent = '순위 불러오는 중…';
+    el.innerHTML = '';
+    fetchBoard()
+      .then((scores) => {
+        statusEl.textContent = '';
+        renderList(el, scores, highlightId);
+      })
+      .catch(() => {
+        statusEl.textContent = '연결 실패 — 마지막으로 받아둔 순위예요';
+        renderList(el, mergedLocalView(), highlightId);
+      });
+  }
+
+  let registered = false;
   function registerScore() {
+    if (registered) return;
+    registered = true;
     const name = (nameInput.value || '').trim().slice(0, 8) || '무명 두더지꾼';
     try { localStorage.setItem(NAME_KEY, name); } catch (e) { /* private mode */ }
-    const entry = { name, score, moles: molesHit, date: Date.now() };
-    const ranks = loadRanks();
-    ranks.push(entry);
-    // Stable sort keeps earlier records ahead on ties
-    ranks.sort((a, b) => b.score - a.score);
-    saveRanks(ranks.slice(0, MAX_RANKS));
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+      name,
+      score,
+      moles: molesHit,
+      date: Date.now(),
+    };
+    // Always keep a copy on this device (works offline, heals the server)
+    const local = loadRanks();
+    local.push(entry);
+    local.sort(byScore);
+    saveList(RANKS_KEY, local.slice(0, MAX_RANKS));
     registerBox.classList.add('hidden');
-    renderRanks(entry);
+
+    if (!boardEnabled()) {
+      renderList(rankList, loadRanks(), entry.id);
+      return;
+    }
+    ranksStatusGO.textContent = '순위 올리는 중…';
+    submitBoard(entry)
+      .then((scores) => {
+        ranksStatusGO.textContent = '';
+        renderList(rankList, scores, entry.id);
+      })
+      .catch(() => {
+        ranksStatusGO.textContent = '연결 실패 — 일단 이 기기에 저장했어요';
+        renderList(rankList, mergedLocalView(), entry.id);
+      });
   }
   saveScoreBtn.addEventListener('click', registerScore);
   nameInput.addEventListener('keydown', (e) => {
@@ -169,7 +285,7 @@
   });
 
   ranksBtn.addEventListener('click', () => {
-    renderRanks(null, rankListFull);
+    showRanks(rankListFull, ranksStatus, null);
     ranksOverlay.classList.remove('hidden');
   });
   closeRanksBtn.addEventListener('click', () => {
@@ -284,6 +400,7 @@
     spawnTimer = 450;
     lastTickSecond = -1;
     shakeT = 0;
+    registered = false;
     updateHud();
   }
 
@@ -314,13 +431,13 @@
     } else {
       newRecord.classList.add('hidden');
     }
-    renderRanks(null);
-    if (rankQualifies(score)) {
+    if (score > 0 && !registered) {
       nameInput.value = localStorage.getItem(NAME_KEY) || '';
       registerBox.classList.remove('hidden');
     } else {
       registerBox.classList.add('hidden');
     }
+    showRanks(rankList, ranksStatusGO, null);
     updateHud();
     gameover.classList.remove('hidden');
     sEnd();
@@ -961,6 +1078,10 @@
 
   startBtn.addEventListener('click', startGame);
   retryBtn.addEventListener('click', startGame);
+
+  // Titles reflect whether the shared online board is wired up yet
+  ranksLead.textContent = boardEnabled() ? '모두가 함께 겨루는 TOP 20' : '이 기기에 저장된 TOP 20';
+  ranksTitleGO.textContent = boardEnabled() ? '🌍 전체 순위 TOP 20' : '🏅 순위 TOP 20 (이 기기)';
 
   updateHud();
   requestAnimationFrame(frame);
