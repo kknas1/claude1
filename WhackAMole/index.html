@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="version-badge">v1.0.0</div>
+  <div class="version-badge">v1.1.0</div>
   <button id="soundBtn" class="sound-btn" aria-label="사운드 켜기/끄기">🔊</button>
 
   <div class="game-wrap">
@@ -49,7 +49,8 @@
             <li>✨ 황금 두더지는 <b>+30점</b> (빨리 사라져요)</li>
             <li>💣 폭탄을 누르면 <b>-30점</b>, 조심!</li>
             <li>🔥 연속으로 잡으면 <b>콤보 보너스</b></li>
-            <li>❌ 헛스윙하면 콤보가 끊겨요</li>
+            <li>⏫ <b>9초마다 레벨업!</b> 더 빨라지고 우르르 나와요</li>
+            <li>🏅 끝나면 이름을 남겨 <b>순위 등록</b></li>
           </ul>
           <button id="startBtn" class="btn">시작하기</button>
         </div>
@@ -63,6 +64,12 @@
             두더지 <b id="finalMoles">0</b>마리
           </p>
           <p id="newRecord" class="record hidden">🏆 신기록!</p>
+          <div id="registerBox" class="register hidden">
+            <input id="nameInput" maxlength="8" placeholder="이름 (8자)" autocomplete="off">
+            <button id="saveScoreBtn" class="btn small">순위 등록</button>
+          </div>
+          <p class="ranks-title">🏅 순위 (이 기기)</p>
+          <ol id="rankList" class="ranks"></ol>
           <button id="retryBtn" class="btn">다시 도전</button>
         </div>
       </div>
