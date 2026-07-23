@@ -287,6 +287,19 @@ body {
   border-radius: 8px;
 }
 
+.admin-reset {
+  display: block;
+  margin: 12px auto 0;
+  background: none;
+  border: none;
+  color: #6a7396;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 4px 8px;
+}
+
 .result {
   font-size: 16px;
   margin-bottom: 12px;

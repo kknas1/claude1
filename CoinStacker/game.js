@@ -598,6 +598,29 @@
     }
   }
 
+  async function resetRanking() {
+    const pw = prompt('관리자 비밀번호를 입력하세요');
+    if (pw === null || pw === '') return;
+    rankList.innerHTML = '초기화 중...';
+    try {
+      const res = await fetch(RANK_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'reset', pw: pw }),
+      });
+      const data = await parseRankResponse(res);
+      if (!data.ok) {
+        rankList.textContent = data.error === 'wrong password'
+          ? '비밀번호가 틀렸습니다'
+          : '초기화 실패: ' + String(data.error).slice(0, 60);
+        return;
+      }
+      rankList.innerHTML = '점수판이 초기화됐습니다 ✅';
+    } catch (err) {
+      rankList.textContent = '초기화 실패: ' + String(err && err.message || err).slice(0, 60);
+    }
+  }
+
+  document.getElementById('resetBtn').addEventListener('click', resetRanking);
   submitBtn.addEventListener('click', submitScore);
   nameInput.addEventListener('keydown', (e) => {
     if (e.code === 'Enter') { e.preventDefault(); submitScore(); }
