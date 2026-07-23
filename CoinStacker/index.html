@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="version-badge">v1.5.1</div>
+  <div class="version-badge">v1.5.2</div>
   <div class="game-wrap">
     <header class="hud">
       <div class="hud-item">
@@ -76,6 +76,12 @@
           <div id="rankList" class="rank-list">불러오는 중...</div>
           <button id="rankCloseBtn" class="btn">닫기</button>
           <button id="resetBtn" class="admin-reset">관리자 초기화</button>
+          <div id="resetBox" class="reset-box hidden">
+            <input id="resetPw" type="password" inputmode="numeric" maxlength="8"
+                   placeholder="비밀번호" autocomplete="off">
+            <button id="resetOkBtn" class="btn small">확인</button>
+            <button id="resetCancelBtn" class="btn small gray">취소</button>
+          </div>
         </div>
       </div>
     </div>

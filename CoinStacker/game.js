@@ -598,9 +598,12 @@
     }
   }
 
-  async function resetRanking() {
-    const pw = prompt('관리자 비밀번호를 입력하세요');
-    if (pw === null || pw === '') return;
+  // iOS home-screen (standalone) apps silently swallow prompt()/alert(),
+  // so the admin password is collected with an in-page input instead.
+  const resetBox = document.getElementById('resetBox');
+  const resetPw = document.getElementById('resetPw');
+
+  async function resetRanking(pw) {
     rankList.innerHTML = '초기화 중...';
     try {
       const res = await fetch(RANK_URL, {
@@ -620,7 +623,28 @@
     }
   }
 
-  document.getElementById('resetBtn').addEventListener('click', resetRanking);
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    resetBox.classList.toggle('hidden');
+    if (!resetBox.classList.contains('hidden')) {
+      resetPw.value = '';
+      resetPw.focus();
+    }
+  });
+  document.getElementById('resetOkBtn').addEventListener('click', () => {
+    const pw = resetPw.value.trim();
+    if (!pw) { resetPw.focus(); return; }
+    resetBox.classList.add('hidden');
+    resetRanking(pw);
+  });
+  document.getElementById('resetCancelBtn').addEventListener('click', () => {
+    resetBox.classList.add('hidden');
+  });
+  resetPw.addEventListener('keydown', (e) => {
+    if (e.code === 'Enter') {
+      e.preventDefault();
+      document.getElementById('resetOkBtn').click();
+    }
+  });
   submitBtn.addEventListener('click', submitScore);
   nameInput.addEventListener('keydown', (e) => {
     if (e.code === 'Enter') { e.preventDefault(); submitScore(); }
