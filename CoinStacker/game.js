@@ -41,7 +41,7 @@
   // hides every ranking UI element, so the game degrades gracefully until the
   // web app is deployed. window.RANK_URL lets tests inject a mock endpoint.
   const RANK_URL = window.RANK_URL ||
-    'https://script.google.com/macros/s/AKfycbyoo3Ifin3ITo0GrvNHAe66J7LugBIbkBEZG1jB_EnWMkaEgqOmscc_d3aTvqPv9fUOZw/exec';
+    'https://script.google.com/macros/s/AKfycby1jj5VV5SkHcMBaRiHAPlYrF2s6WtDrFKFdwq81gTsKY_m-UFC5Oj-DDt2k4tZvlg1Lg/exec';
 
   /** @type {{x:number,y:number,r:number,vy:number,vx:number,settled:boolean,fallingOff:boolean,rot:number,vrot:number,color:string,shineSeed:number}[]} */
   let coins = [];
