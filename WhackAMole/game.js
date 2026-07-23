@@ -23,6 +23,10 @@
   const startBtn = document.getElementById('startBtn');
   const retryBtn = document.getElementById('retryBtn');
   const soundBtn = document.getElementById('soundBtn');
+  const registerBox = document.getElementById('registerBox');
+  const nameInput = document.getElementById('nameInput');
+  const saveScoreBtn = document.getElementById('saveScoreBtn');
+  const rankList = document.getElementById('rankList');
 
   const TOTAL_TIME = 45000;
   const HOLE_X = [80, 210, 340];
@@ -43,6 +47,9 @@
 
   const BEST_KEY = 'whackmole.best';
   const MUTE_KEY = 'whackmole.muted';
+  const RANKS_KEY = 'whackmole.ranks';
+  const NAME_KEY = 'whackmole.name';
+  const MAX_RANKS = 10;
 
   /** @type {{cx:number,cy:number,state:string,type:string,t:number,upDur:number}[]} */
   const holes = [];
@@ -58,10 +65,14 @@
   let best = loadBest();
   let combo = 0;
   let molesHit = 0;
+  let level = 1;
   let spawnTimer = 0;
   let lastTickSecond = -1;
   let shakeT = 0;
   let shakeMag = 0;
+
+  /** @type {{text:string,life:number}[]} */
+  let banners = [];
 
   /** @type {{x:number,y:number,vx:number,vy:number,rot:number,vr:number,life:number,max:number,color:string,size:number,kind:string}[]} */
   let particles = [];
@@ -94,6 +105,63 @@
   function saveBest(v) {
     try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* private mode */ }
   }
+
+  // ---------- Local leaderboard (stored on this device) ----------
+  function loadRanks() {
+    try {
+      const v = JSON.parse(localStorage.getItem(RANKS_KEY) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveRanks(ranks) {
+    try { localStorage.setItem(RANKS_KEY, JSON.stringify(ranks)); } catch (e) { /* private mode */ }
+  }
+  function rankQualifies(s) {
+    if (s <= 0) return false;
+    const ranks = loadRanks();
+    return ranks.length < MAX_RANKS || s > ranks[ranks.length - 1].score;
+  }
+  function renderRanks(highlight) {
+    const ranks = loadRanks();
+    rankList.innerHTML = '';
+    if (!ranks.length) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = '아직 기록이 없어요';
+      rankList.appendChild(li);
+      return;
+    }
+    const medals = ['🥇', '🥈', '🥉'];
+    ranks.forEach((r, i) => {
+      const li = document.createElement('li');
+      if (r === highlight) li.className = 'me';
+      const who = document.createElement('span');
+      who.textContent = `${medals[i] || (i + 1) + '위'} ${r.name}`;
+      const pts = document.createElement('span');
+      pts.textContent = `${r.score}점 · ${r.moles}마리`;
+      li.appendChild(who);
+      li.appendChild(pts);
+      rankList.appendChild(li);
+    });
+  }
+  function registerScore() {
+    const name = (nameInput.value || '').trim().slice(0, 8) || '무명 두더지꾼';
+    try { localStorage.setItem(NAME_KEY, name); } catch (e) { /* private mode */ }
+    const entry = { name, score, moles: molesHit, date: Date.now() };
+    const ranks = loadRanks();
+    ranks.push(entry);
+    // Stable sort keeps earlier records ahead on ties
+    ranks.sort((a, b) => b.score - a.score);
+    saveRanks(ranks.slice(0, MAX_RANKS));
+    registerBox.classList.add('hidden');
+    renderRanks(entry);
+  }
+  saveScoreBtn.addEventListener('click', registerScore);
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') registerScore();
+  });
 
   // ---------- Audio (synthesized, no asset files) ----------
   let audio = null;
@@ -145,6 +213,7 @@
   const sWhiff = () => noiseBurst(0.05, 0.05);
   const sTick = () => beep(1200, 0.04, 'square', 0.1);
   const sStart = () => { beep(520, 0.08, 'sine', 0.15); beep(780, 0.12, 'sine', 0.15, null, 0.09); };
+  const sLevelUp = () => { beep(620, 0.07, 'square', 0.14); beep(830, 0.07, 'square', 0.14, null, 0.08); beep(1100, 0.12, 'square', 0.14, null, 0.16); };
   const sEnd = () => { beep(660, 0.14, 'sine', 0.16); beep(520, 0.14, 'sine', 0.16, null, 0.15); beep(390, 0.25, 'sine', 0.16, null, 0.3); };
 
   soundBtn.addEventListener('click', () => {
@@ -154,25 +223,34 @@
     if (!muted) ensureAudio();
   });
 
-  // ---------- Difficulty ramp ----------
+  // ---------- Level-based difficulty ----------
   const lerp = (a, b, t) => a + (b - a) * t;
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const easeOut = (t) => 1 - (1 - t) * (1 - t);
 
-  function difficulty() {
-    return clamp01(elapsed / TOTAL_TIME);
+  // Level up every LEVEL_MS; each level spawns faster, hides quicker,
+  // pops more moles at once and mixes in more bombs.
+  const LEVEL_MS = 9000;
+  const LEVELS = [
+    { spawn: 900, up: 1150, bomb: 0.06, double: 0.00, triple: 0.00 },
+    { spawn: 730, up: 970,  bomb: 0.08, double: 0.18, triple: 0.00 },
+    { spawn: 580, up: 810,  bomb: 0.10, double: 0.32, triple: 0.00 },
+    { spawn: 460, up: 670,  bomb: 0.13, double: 0.48, triple: 0.12 },
+    { spawn: 370, up: 550,  bomb: 0.16, double: 0.62, triple: 0.28 },
+  ];
+  const MAX_LEVEL = LEVELS.length;
+
+  function levelCfg() {
+    return LEVELS[level - 1];
   }
   function spawnDelay() {
-    return lerp(850, 380, difficulty());
+    return levelCfg().spawn;
   }
   function upTime(type) {
-    let t = lerp(1100, 580, difficulty());
+    let t = levelCfg().up;
     if (type === 'gold') t *= 0.72;
     if (type === 'bomb') t *= 1.1;
     return t;
-  }
-  function bombChance() {
-    return lerp(0.07, 0.16, difficulty());
   }
 
   // ---------- Game flow ----------
@@ -184,10 +262,12 @@
     particles = [];
     popups = [];
     hammers = [];
+    banners = [];
     elapsed = 0;
     score = 0;
     combo = 0;
     molesHit = 0;
+    level = 1;
     spawnTimer = 450;
     lastTickSecond = -1;
     shakeT = 0;
@@ -220,6 +300,13 @@
     } else {
       newRecord.classList.add('hidden');
     }
+    renderRanks(null);
+    if (rankQualifies(score)) {
+      nameInput.value = localStorage.getItem(NAME_KEY) || '';
+      registerBox.classList.remove('hidden');
+    } else {
+      registerBox.classList.add('hidden');
+    }
     updateHud();
     gameover.classList.remove('hidden');
     sEnd();
@@ -234,7 +321,7 @@
   function pickType() {
     const r = Math.random();
     if (r < GOLD_CHANCE) return 'gold';
-    if (r < GOLD_CHANCE + bombChance()) return 'bomb';
+    if (r < GOLD_CHANCE + levelCfg().bomb) return 'bomb';
     return 'normal';
   }
 
@@ -375,11 +462,21 @@
       sTick();
     }
 
+    const newLevel = Math.min(MAX_LEVEL, Math.floor(elapsed / LEVEL_MS) + 1);
+    if (newLevel !== level) {
+      level = newLevel;
+      banners.push({ text: `LEVEL ${level}!`, life: 0 });
+      sLevelUp();
+      // Kick the new level off with an immediate wave
+      spawnTimer = Math.min(spawnTimer, 120);
+    }
+
     spawnTimer -= dt;
     while (spawnTimer <= 0) {
       spawnMole();
-      // Late game occasionally pops two moles at once
-      if (difficulty() > 0.55 && Math.random() < 0.35) spawnMole();
+      // Higher levels pop several moles at once
+      if (Math.random() < levelCfg().double) spawnMole();
+      if (Math.random() < levelCfg().triple) spawnMole();
       spawnTimer += spawnDelay();
     }
 
@@ -421,6 +518,9 @@
     for (const hm of hammers) hm.t += dt;
     hammers = hammers.filter((hm) => hm.t < 230);
 
+    for (const b of banners) b.life += dt;
+    banners = banners.filter((b) => b.life < 1000);
+
     if (shakeT > 0) shakeT -= dt;
 
     updateHud();
@@ -438,6 +538,7 @@
     drawField();
     drawTimeBar();
     drawCombo();
+    drawBanners();
 
     for (const h of holes) {
       drawHoleBack(h);
@@ -487,7 +588,17 @@
   }
 
   function drawTimeBar() {
-    const x = 30, y = 20, w = W - 60, h = 16;
+    // Level badge on the left, time bar fills the rest
+    ctx.fillStyle = '#ffd54d';
+    roundRect(24, 15, 58, 26, 13);
+    ctx.fill();
+    ctx.fillStyle = '#3a2a00';
+    ctx.font = '800 15px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`LV ${level}`, 53, 29);
+
+    const x = 92, y = 20, w = W - 92 - 24, h = 16;
     const frac = clamp01((TOTAL_TIME - elapsed) / TOTAL_TIME);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     roundRect(x, y, w, h, 8);
@@ -497,6 +608,27 @@
       ctx.fillStyle = color;
       roundRect(x + 2, y + 2, Math.max(4, (w - 4) * frac), h - 4, 6);
       ctx.fill();
+    }
+  }
+
+  function drawBanners() {
+    for (const b of banners) {
+      const inK = clamp01(b.life / 180);            // pop in
+      const outK = clamp01((b.life - 700) / 300);   // fade out
+      const scale = 0.5 + easeOut(inK) * 0.5 + outK * 0.15;
+      ctx.save();
+      ctx.globalAlpha = 1 - outK;
+      ctx.translate(W / 2, 120);
+      ctx.scale(scale, scale);
+      ctx.font = '800 40px -apple-system, "Apple SD Gothic Neo", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.lineWidth = 8;
+      ctx.strokeText(b.text, 0, 0);
+      ctx.fillStyle = '#ffd54d';
+      ctx.fillText(b.text, 0, 0);
+      ctx.restore();
     }
   }
 

@@ -225,6 +225,78 @@ body {
   animation: pop 0.5s ease;
 }
 
+.register {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.register.hidden {
+  display: none;
+}
+
+.register input {
+  flex: 1;
+  min-width: 0;
+  max-width: 170px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 213, 77, 0.35);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.register input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.btn.small {
+  font-size: 14px;
+  padding: 10px 16px;
+  box-shadow: 0 3px 0 #8a5a0a, 0 6px 12px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+}
+
+.ranks-title {
+  font-size: 13px;
+  color: #9fc2a4;
+  text-align: left;
+  margin-bottom: 6px;
+}
+
+.ranks {
+  list-style: none;
+  text-align: left;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  max-height: 172px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #dcefdf;
+}
+
+.ranks li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ranks li.me {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.ranks li.empty {
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+}
+
 .record.hidden {
   display: none;
 }
