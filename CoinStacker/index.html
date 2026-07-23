@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="version-badge">v1.3.1</div>
+  <div class="version-badge">v1.3.2</div>
   <div class="game-wrap">
     <header class="hud">
       <div class="hud-item">
@@ -43,8 +43,8 @@
           <h1>🪙 동전쌓기</h1>
           <p class="lead">떨어지는 동전을 정확히 쌓아 최대한 높게 올리세요!</p>
           <ul class="how">
-            <li><b>← →</b> 또는 <b>드래그</b>로 좌우 이동</li>
-            <li><b>스페이스</b> 또는 <b>클릭</b>으로 떨어뜨리기</li>
+            <li><b>드래그</b>로 좌우 조준 (PC는 ← →)</li>
+            <li><b>탭</b> 또는 <b>DROP</b>으로 떨어뜨리기</li>
             <li>중심에서 벗어나면 동전이 미끄러져요</li>
           </ul>
           <button id="startBtn" class="btn">시작하기</button>
@@ -80,9 +80,7 @@
     </div>
 
     <footer class="controls">
-      <button class="ctrl" id="leftBtn" aria-label="왼쪽">◀</button>
       <button class="ctrl drop" id="dropBtn" aria-label="떨어뜨리기">DROP</button>
-      <button class="ctrl" id="rightBtn" aria-label="오른쪽">▶</button>
     </footer>
   </div>
 
