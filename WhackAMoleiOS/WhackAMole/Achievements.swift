@@ -1,8 +1,8 @@
 import Foundation
 import SwiftUI
 
-// 누적 통계 + 업적. 전부 로컬(UserDefaults) 저장이며,
-// PR-3에서 Game Center 업적 보고가 여기에 연결된다.
+// 누적 통계 + 업적. 로컬(UserDefaults)에 저장하고,
+// 새 업적은 GameCenterManager를 통해 Game Center에도 보고한다.
 
 struct AchievementDef: Identifiable {
     let id: String        // Game Center 업적 ID로도 그대로 사용
@@ -71,7 +71,7 @@ final class Progress: ObservableObject {
         if let def = Self.all.first(where: { $0.id == id }) {
             newlyUnlocked.append(def)
         }
-        GameCenterBridge.reportAchievement(id)
+        GameCenterManager.shared.reportAchievement(id)
         save()
     }
 
@@ -143,11 +143,4 @@ final class Progress: ObservableObject {
     func dailyTodayScore() -> Int {
         d.integer(forKey: "stat.dailyTodayScore")
     }
-}
-
-// PR-3에서 GameCenterManager 로 대체되는 얇은 다리.
-// 지금은 아무것도 하지 않아 Game Center 없이도 전체가 동작한다.
-enum GameCenterBridge {
-    static func reportAchievement(_ id: String) {}
-    static func reportScore(_ score: Int, mode: GameMode) {}
 }

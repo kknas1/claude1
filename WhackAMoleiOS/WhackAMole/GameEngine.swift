@@ -369,7 +369,7 @@ final class GameEngine: ObservableObject {
         if mode == .daily {
             Progress.shared.markDailyPlayed(score: score)
         }
-        GameCenterBridge.reportScore(score, mode: mode)
+        GameCenterManager.shared.reportScore(score: score, survival: elapsed, mode: mode)
         gameOver = true
         Sounds.shared.stopBGM()
         Sounds.shared.end()

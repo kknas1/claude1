@@ -63,6 +63,9 @@ struct GameView: View {
             OnboardingView(isPresented: $showOnboarding)
         }
         .statusBarHidden()
+        .onAppear {
+            GameCenterManager.shared.authenticate()
+        }
     }
 
     private func startGame(_ mode: GameMode) {
@@ -204,6 +207,8 @@ struct GameView: View {
     private var startOverlay: some View {
         panel {
             Text("🔨 두더지 잡기").font(.largeTitle.bold()).foregroundStyle(accent)
+                .onAppear { GameCenterManager.shared.setAccessPoint(visible: true) }
+                .onDisappear { GameCenterManager.shared.setAccessPoint(visible: false) }
 
             VStack(spacing: 8) {
                 ForEach(GameMode.allCases) { m in
@@ -316,9 +321,13 @@ struct GameView: View {
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 160)
                         Button {
+                            let finalName = name.isEmpty ? "무명 두더지꾼" : name
+                            if UGC.containsProfanity(finalName) {
+                                board.lastError = "이름에 부적절한 단어가 있어요 — 바꿔 주세요"
+                                return
+                            }
                             submitting = true
                             registered = true
-                            let finalName = name.isEmpty ? "무명 두더지꾼" : name
                             UserDefaults.standard.set(finalName, forKey: "whackmole.name")
                             Task {
                                 let entry = await board.submit(name: finalName,
@@ -395,16 +404,21 @@ struct RanksView: View {
     @ObservedObject var board: Leaderboard
     let highlightId: String?
 
+    @ObservedObject private var ugc = UGC.shared
     @State private var tab = 0
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     private let accent = Color(red: 1.0, green: 0.84, blue: 0.30)
+    private let supportURL = URL(string: "https://kknas1.github.io/claude1/WhackAMole/support.html")!
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 10) {
                 Text("클래식 모드 온라인 리그 — 웹에서 하는 가족들과 같은 순위판!")
                     .font(.caption2).foregroundStyle(.secondary)
+                Text("부적절한 기록은 길게 눌러 숨기거나 신고할 수 있어요")
+                    .font(.caption2).foregroundStyle(.tertiary)
 
                 Picker("보기", selection: $tab) {
                     Text("🔥 이번 주").tag(0)
@@ -413,8 +427,8 @@ struct RanksView: View {
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
 
-                if let champ = board.lastWeekChampion {
-                    Text("👑 지난주 챔피언: \(champ.name) (\(champ.score)점)")
+                if let champ = board.lastWeekChampion, !ugc.hiddenIds.contains(champ.id) {
+                    Text("👑 지난주 챔피언: \(UGC.displayName(champ.name)) (\(champ.score)점)")
                         .font(.footnote.bold())
                         .foregroundStyle(accent)
                 }
@@ -424,6 +438,7 @@ struct RanksView: View {
                     Spacer()
                 } else {
                     let list = Array((tab == 0 ? board.thisWeek : board.scores)
+                        .filter { !ugc.hiddenIds.contains($0.id) }
                         .prefix(Leaderboard.visibleMax))
                     if list.isEmpty {
                         Text("아직 기록이 없어요").foregroundStyle(.secondary).padding(.top, 40)
@@ -433,7 +448,7 @@ struct RanksView: View {
                             HStack {
                                 Text(idx == 0 ? "🥇" : idx == 1 ? "🥈" : idx == 2 ? "🥉" : "\(idx + 1)위")
                                     .frame(width: 44, alignment: .leading)
-                                Text(entry.name)
+                                Text(UGC.displayName(entry.name))
                                     .fontWeight(entry.id == highlightId ? .black : .regular)
                                     .foregroundStyle(entry.id == highlightId ? accent : .primary)
                                 Spacer()
@@ -441,8 +456,31 @@ struct RanksView: View {
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
+                            .contentShape(Rectangle())
+                            .contextMenu {
+                                if entry.id != highlightId {
+                                    Button(role: .destructive) {
+                                        ugc.hide(entry.id)
+                                    } label: {
+                                        Label("이 기록 숨기기", systemImage: "eye.slash")
+                                    }
+                                    Button {
+                                        ugc.hide(entry.id)
+                                        openURL(supportURL)
+                                    } label: {
+                                        Label("신고하기 (숨기고 문의 페이지 열기)", systemImage: "flag")
+                                    }
+                                }
+                            }
                         }
                         .listStyle(.plain)
+                    }
+                    if !ugc.hiddenIds.isEmpty {
+                        Button("숨긴 기록 \(ugc.hiddenIds.count)개 모두 보이기") {
+                            ugc.unhideAll()
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
                 }
 
