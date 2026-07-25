@@ -3,12 +3,14 @@ import SwiftUI
 struct GameView: View {
     @StateObject private var engine = GameEngine()
     @StateObject private var board = Leaderboard()
+    @ObservedObject private var progress = Progress.shared
 
     @State private var name = UserDefaults.standard.string(forKey: "whackmole.name") ?? ""
     @State private var registered = false
     @State private var myEntryId: String?
     @State private var submitting = false
     @State private var showRanks = false
+    @State private var showStats = false
 
     private let fieldGreen = Color(red: 0.29, green: 0.63, blue: 0.31)
     private let darkGreen = Color(red: 0.05, green: 0.15, blue: 0.07)
@@ -40,7 +42,17 @@ struct GameView: View {
         .sheet(isPresented: $showRanks) {
             RanksView(board: board, highlightId: myEntryId)
         }
+        .sheet(isPresented: $showStats) {
+            StatsView()
+        }
         .statusBarHidden()
+    }
+
+    private func startGame(_ mode: GameMode) {
+        registered = false
+        myEntryId = nil
+        Progress.shared.newlyUnlocked = []
+        engine.start(mode)
     }
 
     // MARK: HUD
@@ -49,9 +61,19 @@ struct GameView: View {
         HStack {
             hudItem("점수", "\(engine.score)")
             Spacer()
-            hudItem("시간", "\(Int(engine.remaining.rounded(.up)))")
-            Spacer()
-            hudItem("최고", "\(engine.best)")
+            if engine.mode == .hardcore {
+                HStack(spacing: 2) {
+                    ForEach(0..<3, id: \.self) { i in
+                        Text(i < engine.lives ? "❤️" : "🖤").font(.body)
+                    }
+                }
+                Spacer()
+                hudItem("생존", String(format: "%.0f초", engine.elapsed))
+            } else {
+                hudItem("시간", "\(Int(engine.remaining.rounded(.up)))")
+                Spacer()
+                hudItem("최고", "\(engine.best)")
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -75,16 +97,23 @@ struct GameView: View {
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(accent, in: Capsule())
                     .foregroundStyle(Color(red: 0.23, green: 0.16, blue: 0.0))
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(.black.opacity(0.3))
-                        Capsule()
-                            .fill(engine.remaining > 22 ? Color.green :
-                                  engine.remaining > 10 ? Color.orange : Color.red)
-                            .frame(width: geo.size.width * engine.remaining / GameEngine.totalTime)
+                if engine.timed {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.black.opacity(0.3))
+                            Capsule()
+                                .fill(engine.remaining > 22 ? Color.green :
+                                      engine.remaining > 10 ? Color.orange : Color.red)
+                                .frame(width: geo.size.width * engine.remaining / GameEngine.totalTime)
+                        }
                     }
+                    .frame(height: 14)
+                } else {
+                    Text(engine.mode.emoji + " " + engine.mode.title)
+                        .font(.footnote.bold())
+                        .foregroundStyle(.white.opacity(0.7))
+                    Spacer()
                 }
-                .frame(height: 14)
             }
             .padding(.top, 10)
 
@@ -127,36 +156,63 @@ struct GameView: View {
     private var startOverlay: some View {
         panel {
             Text("🔨 두더지 잡기").font(.largeTitle.bold()).foregroundStyle(accent)
-            Text("45초, 4×4 구멍에서 최대한 많이!")
-                .font(.subheadline).foregroundStyle(.white.opacity(0.85))
 
-            VStack(alignment: .leading, spacing: 7) {
-                Text("🐹 두더지 +10점 · ✨ 황금 +30점")
-                Text("⛑️ 헬멧 두더지는 두 번! +20점")
-                Text("💣 머리에 불꽃 심지가 타면 폭탄! -30점 & -2초")
-                Text("🔥 연속으로 잡으면 콤보 보너스")
-                Text("⏫ 9초마다 레벨업, 점점 대혼돈")
+            VStack(spacing: 8) {
+                ForEach(GameMode.allCases) { m in
+                    modeButton(m)
+                }
             }
-            .font(.footnote)
-            .padding(14)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("🐹 +10점 · ✨ 황금 +30점 · ⛑️ 헬멧은 두 번!")
+                Text("💣 머리에 불꽃 심지가 타면 폭탄 — 치지 마세요")
+                Text("🔥 연속으로 잡으면 콤보 보너스")
+            }
+            .font(.caption)
+            .padding(12)
             .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
 
-            Button { engine.start(); registered = false; myEntryId = nil } label: {
-                Text("시작하기").font(.title3.bold()).padding(.horizontal, 30).padding(.vertical, 12)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(accent)
-            .foregroundStyle(Color(red: 0.23, green: 0.16, blue: 0.0))
+            HStack(spacing: 10) {
+                Button {
+                    showRanks = true
+                    Task { await board.refresh() }
+                } label: {
+                    Text("🏅 순위").font(.subheadline.bold())
+                }
+                .buttonStyle(.bordered)
+                .tint(accent)
 
-            Button {
-                showRanks = true
-                Task { await board.refresh() }
-            } label: {
-                Text("🏅 순위 보기").font(.subheadline.bold())
+                Button { showStats = true } label: {
+                    Text("📊 기록/업적").font(.subheadline.bold())
+                }
+                .buttonStyle(.bordered)
+                .tint(accent)
             }
-            .buttonStyle(.bordered)
-            .tint(accent)
         }
+    }
+
+    private func modeButton(_ m: GameMode) -> some View {
+        let dailyDone = m == .daily && progress.dailyPlayedToday()
+        return Button {
+            startGame(m)
+        } label: {
+            HStack {
+                Text(m.emoji).font(.title2)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(m.title).font(.headline)
+                    Text(dailyDone ? "오늘 완료: \(progress.dailyTodayScore())점 — 내일 또 만나요!" : m.subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.65))
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.white.opacity(dailyDone ? 0.04 : 0.09), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .foregroundStyle(.white)
+        .disabled(dailyDone)
     }
 
     // MARK: 게임 오버
@@ -164,57 +220,80 @@ struct GameView: View {
     private var gameOverOverlay: some View {
         panel {
             Text("⏰ 게임 종료!").font(.largeTitle.bold()).foregroundStyle(accent)
-            Text("\(engine.score)점 · 두더지 \(engine.molesHit)마리")
-                .font(.headline).foregroundStyle(.white)
 
-            if engine.score >= engine.best && engine.score > 0 {
-                Text("🏆 신기록!").font(.headline).foregroundStyle(accent)
+            switch engine.mode {
+            case .hardcore:
+                Text("💀 \(String(format: "%.0f초", engine.elapsed)) 생존 · \(engine.score)점")
+                    .font(.headline).foregroundStyle(.white)
+                Text("최고 생존: \(String(format: "%.0f초", progress.bestHardcoreSurvival))")
+                    .font(.caption).foregroundStyle(.white.opacity(0.7))
+            case .daily:
+                Text("📅 오늘의 챌린지: \(engine.score)점 · \(engine.molesHit)마리")
+                    .font(.headline).foregroundStyle(.white)
+                Text("🔥 연속 참가 \(progress.dailyStreak)일째")
+                    .font(.caption).foregroundStyle(.white.opacity(0.7))
+            case .classic:
+                Text("\(engine.score)점 · 두더지 \(engine.molesHit)마리")
+                    .font(.headline).foregroundStyle(.white)
+                if engine.score >= engine.best && engine.score > 0 {
+                    Text("🏆 신기록!").font(.headline).foregroundStyle(accent)
+                }
             }
 
-            if let id = myEntryId, let rank = board.weeklyRank(of: id) {
-                Text("🔥 이번 주 \(rank)위!").font(.title2.bold()).foregroundStyle(accent)
-            }
-
-            if let err = board.lastError {
-                Text(err).font(.caption).foregroundStyle(.orange)
-            }
-
-            if !registered && engine.score > 0 {
-                HStack {
-                    TextField("이름 (8자)", text: $name)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 160)
-                    Button {
-                        submitting = true
-                        registered = true
-                        let finalName = name.isEmpty ? "무명 두더지꾼" : name
-                        UserDefaults.standard.set(finalName, forKey: "whackmole.name")
-                        Task {
-                            let entry = await board.submit(name: finalName,
-                                                           score: engine.score,
-                                                           moles: engine.molesHit)
-                            myEntryId = entry.id
-                            submitting = false
-                        }
-                    } label: {
-                        if submitting { ProgressView() } else { Text("순위 등록").bold() }
+            if !progress.newlyUnlocked.isEmpty {
+                VStack(spacing: 3) {
+                    ForEach(progress.newlyUnlocked) { a in
+                        Text("\(a.emoji) 업적 달성: \(a.title)")
+                            .font(.footnote.bold()).foregroundStyle(accent)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(accent)
-                    .foregroundStyle(Color(red: 0.23, green: 0.16, blue: 0.0))
+                }
+            }
+
+            if engine.mode == .classic {
+                if let id = myEntryId, let rank = board.weeklyRank(of: id) {
+                    Text("🔥 이번 주 \(rank)위!").font(.title2.bold()).foregroundStyle(accent)
+                }
+                if let err = board.lastError {
+                    Text(err).font(.caption).foregroundStyle(.orange)
+                }
+                if !registered && engine.score > 0 {
+                    HStack {
+                        TextField("이름 (8자)", text: $name)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 160)
+                        Button {
+                            submitting = true
+                            registered = true
+                            let finalName = name.isEmpty ? "무명 두더지꾼" : name
+                            UserDefaults.standard.set(finalName, forKey: "whackmole.name")
+                            Task {
+                                let entry = await board.submit(name: finalName,
+                                                               score: engine.score,
+                                                               moles: engine.molesHit)
+                                myEntryId = entry.id
+                                submitting = false
+                                Progress.shared.recordPosted()
+                            }
+                        } label: {
+                            if submitting { ProgressView() } else { Text("순위 등록").bold() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(accent)
+                        .foregroundStyle(Color(red: 0.23, green: 0.16, blue: 0.0))
+                    }
                 }
             }
 
             HStack(spacing: 10) {
-                Button { engine.start(); registered = false; myEntryId = nil } label: {
+                Button { startGame(engine.mode == .daily ? .classic : engine.mode) } label: {
                     Text("다시 도전").bold().padding(.horizontal, 12).padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(accent)
                 .foregroundStyle(Color(red: 0.23, green: 0.16, blue: 0.0))
 
-                Button { showRanks = true; Task { await board.refresh() } } label: {
-                    Text("순위 보기")
+                Button { engine.gameOver = false } label: {
+                    Text("메뉴로")
                 }
                 .buttonStyle(.bordered)
                 .tint(accent)
@@ -222,7 +301,7 @@ struct GameView: View {
 
             ShareLink(item: URL(string: "https://kknas1.github.io/claude1/WhackAMole/")!,
                       subject: Text("두더지 잡기 도전장"),
-                      message: Text("🔨 두더지 잡기에서 \(engine.score)점 냈다! 이겨볼 사람? 👉")) {
+                      message: Text(shareMessage)) {
                 Label("도전장 보내기", systemImage: "square.and.arrow.up")
                     .font(.subheadline.bold())
             }
@@ -231,14 +310,28 @@ struct GameView: View {
         }
     }
 
+    private var shareMessage: String {
+        switch engine.mode {
+        case .hardcore:
+            return "💀 두더지 잡기 하드코어에서 \(String(format: "%.0f초", engine.elapsed)) 생존! 이겨볼 사람? 👉"
+        case .daily:
+            return "📅 오늘의 두더지 챌린지 \(engine.score)점! 같은 패턴으로 붙자 👉"
+        case .classic:
+            return "🔨 두더지 잡기에서 \(engine.score)점 냈다! 이겨볼 사람? 👉"
+        }
+    }
+
     private func panel<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        VStack(spacing: 14, content: content)
-            .padding(24)
-            .frame(maxWidth: 340)
-            .background(Color(red: 0.08, green: 0.20, blue: 0.10).opacity(0.97),
-                        in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(accent.opacity(0.3)))
-            .shadow(radius: 20)
+        ScrollView {
+            VStack(spacing: 14, content: content)
+                .padding(24)
+        }
+        .frame(maxWidth: 340, maxHeight: 560)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(Color(red: 0.08, green: 0.20, blue: 0.10).opacity(0.97),
+                    in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(accent.opacity(0.3)))
+        .shadow(radius: 20)
     }
 }
 
@@ -256,6 +349,9 @@ struct RanksView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 10) {
+                Text("클래식 모드 온라인 리그 — 웹에서 하는 가족들과 같은 순위판!")
+                    .font(.caption2).foregroundStyle(.secondary)
+
                 Picker("보기", selection: $tab) {
                     Text("🔥 이번 주").tag(0)
                     Text("🌍 전체").tag(1)
