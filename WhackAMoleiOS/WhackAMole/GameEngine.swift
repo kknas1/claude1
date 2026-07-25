@@ -105,6 +105,7 @@ final class GameEngine: ObservableObject {
     private var spawnIn: Double = 0.45
     private var bannerAge: Double = 0
     private var seeded: SeededRandom?
+    private var lastTickSecond = -1
 
     var remaining: Double { max(0, Self.totalTime - elapsed) }
     var timed: Bool { mode != .hardcore }
@@ -148,9 +149,11 @@ final class GameEngine: ObservableObject {
         lives = 3
         spawnIn = 0.45
         banner = nil
+        lastTickSecond = -1
         gameOver = false
         running = true
         Sounds.shared.startGame()
+        Sounds.shared.startBGM()
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -171,6 +174,14 @@ final class GameEngine: ObservableObject {
         if timed && remaining <= 0 {
             endGame()
             return
+        }
+        // 마지막 5초 긴박 카운트
+        if timed {
+            let sec = Int(remaining.rounded(.up))
+            if sec <= 5 && sec != lastTickSecond {
+                lastTickSecond = sec
+                Sounds.shared.tick()
+            }
         }
 
         let maxLevel = mode == .hardcore ? 99 : Self.levels.count
@@ -360,6 +371,7 @@ final class GameEngine: ObservableObject {
         }
         GameCenterBridge.reportScore(score, mode: mode)
         gameOver = true
+        Sounds.shared.stopBGM()
         Sounds.shared.end()
     }
 

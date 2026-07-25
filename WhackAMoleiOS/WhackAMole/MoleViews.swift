@@ -93,6 +93,28 @@ struct MoleBody: View {
     }
 }
 
+// 타격 순간 사방으로 튀는 별 — 엔진의 whacked 경과시간(t)으로 구동
+struct StarBurst: View {
+    let t: Double
+    let gold: Bool
+
+    var body: some View {
+        let r = 8 + t * 130
+        let alpha = max(0, 1 - t / 0.32)
+        ZStack {
+            ForEach(0..<6, id: \.self) { i in
+                let a = Double(i) * .pi / 3
+                Text("✦")
+                    .font(.system(size: gold ? 15 : 11))
+                    .foregroundStyle(gold ? Color.yellow : Color(red: 1, green: 0.91, blue: 0.63))
+                    .offset(x: cos(a) * r, y: sin(a) * r * 0.7)
+            }
+        }
+        .opacity(alpha)
+        .allowsHitTesting(false)
+    }
+}
+
 struct FuseView: View {
     @State private var flicker = false
 
@@ -156,12 +178,28 @@ struct HoleCell: View {
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         MoleBody(type: hole.type, whacked: hole.state == .whacked, hp: hole.hp)
+                            .scaleEffect(x: hole.state == .whacked ? 1.12 : 1,
+                                         y: hole.state == .whacked ? 0.86 : 1,
+                                         anchor: .bottom)
                             .scaleEffect(scale, anchor: .bottom)
                             .offset(y: (1 - progress) * moleH * 0.9)
                     }
                     .frame(height: moleH + 30)
                     .padding(.bottom, holeH * 0.45)
                     .clipped()
+                }
+
+                // 타격 스타버스트 (폭탄이면 폭발 링)
+                if hole.state == .whacked {
+                    if hole.type == .bomb {
+                        Circle()
+                            .stroke(Color.orange.opacity(1 - hole.t / 0.32), lineWidth: 5)
+                            .frame(width: 20 + hole.t * 220, height: 20 + hole.t * 220)
+                            .offset(y: -h * 0.4)
+                    } else {
+                        StarBurst(t: hole.t, gold: hole.type == .gold)
+                            .offset(y: -h * 0.45)
+                    }
                 }
 
                 // 구멍 앞 테두리(두더지 하반신을 가림)

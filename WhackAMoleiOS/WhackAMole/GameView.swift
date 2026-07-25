@@ -11,6 +11,9 @@ struct GameView: View {
     @State private var submitting = false
     @State private var showRanks = false
     @State private var showStats = false
+    @State private var showSettings = false
+    @State private var showOnboarding = !UserDefaults.standard.bool(forKey: "onboarded")
+    @State private var countdown: Int?
 
     private let fieldGreen = Color(red: 0.29, green: 0.63, blue: 0.31)
     private let darkGreen = Color(red: 0.05, green: 0.15, blue: 0.07)
@@ -32,11 +35,19 @@ struct GameView: View {
                 Color.red.opacity(0.18).ignoresSafeArea().allowsHitTesting(false)
             }
 
-            if !engine.running && !engine.gameOver {
+            if !engine.running && !engine.gameOver && countdown == nil {
                 startOverlay
             }
             if engine.gameOver {
                 gameOverOverlay
+            }
+            if let n = countdown {
+                Text("\(n)")
+                    .font(.system(size: 120, weight: .black))
+                    .foregroundStyle(accent)
+                    .shadow(color: .black.opacity(0.6), radius: 4, y: 3)
+                    .id(n)
+                    .transition(.scale.combined(with: .opacity))
             }
         }
         .sheet(isPresented: $showRanks) {
@@ -45,14 +56,31 @@ struct GameView: View {
         .sheet(isPresented: $showStats) {
             StatsView()
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView(isPresented: $showOnboarding)
+        }
         .statusBarHidden()
     }
 
     private func startGame(_ mode: GameMode) {
+        guard countdown == nil else { return }
         registered = false
         myEntryId = nil
         Progress.shared.newlyUnlocked = []
-        engine.start(mode)
+        engine.gameOver = false
+        Task { @MainActor in
+            for n in [3, 2, 1] {
+                withAnimation(.spring(duration: 0.25)) { countdown = n }
+                Sounds.shared.countBeep(final: n == 1)
+                Haptics.light()
+                try? await Task.sleep(nanoseconds: 600_000_000)
+            }
+            countdown = nil
+            engine.start(mode)
+        }
     }
 
     // MARK: HUD
@@ -70,7 +98,14 @@ struct GameView: View {
                 Spacer()
                 hudItem("생존", String(format: "%.0f초", engine.elapsed))
             } else {
-                hudItem("시간", "\(Int(engine.remaining.rounded(.up)))")
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("시간").font(.caption).foregroundStyle(.white.opacity(0.6))
+                    Text("\(Int(engine.remaining.rounded(.up)))")
+                        .font(.title2.bold()).monospacedDigit()
+                        .foregroundStyle(engine.running && engine.remaining <= 5 ? .red : accent)
+                        .scaleEffect(engine.running && engine.remaining <= 5 ? 1.15 : 1)
+                        .animation(.spring(duration: 0.2), value: Int(engine.remaining.rounded(.up)))
+                }
                 Spacer()
                 hudItem("최고", "\(engine.best)")
             }
@@ -138,6 +173,19 @@ struct GameView: View {
                         .transition(.scale)
                         .allowsHitTesting(false)
                 }
+
+                if engine.running && engine.combo >= 5 {
+                    VStack {
+                        Text("🔥 콤보 x\(engine.combo)")
+                            .font(.headline.bold())
+                            .foregroundStyle(accent)
+                            .shadow(color: .black.opacity(0.5), radius: 1, y: 1)
+                            .scaleEffect(1 + min(0.3, Double(engine.combo) * 0.01))
+                            .animation(.spring(duration: 0.2), value: engine.combo)
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -172,7 +220,7 @@ struct GameView: View {
             .padding(12)
             .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Button {
                     showRanks = true
                     Task { await board.refresh() }
@@ -183,7 +231,13 @@ struct GameView: View {
                 .tint(accent)
 
                 Button { showStats = true } label: {
-                    Text("📊 기록/업적").font(.subheadline.bold())
+                    Text("📊 기록").font(.subheadline.bold())
+                }
+                .buttonStyle(.bordered)
+                .tint(accent)
+
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape.fill").font(.subheadline)
                 }
                 .buttonStyle(.bordered)
                 .tint(accent)
