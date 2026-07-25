@@ -65,6 +65,30 @@
   const NAME_KEY = 'whackmole.name';
   const MAX_RANKS = 20;
 
+  // ---------- UGC: 닉네임 비속어 필터 ----------
+  // iOS 앱(UGC.swift)의 badWords와 반드시 같은 목록을 유지할 것.
+  /* UGC_FILTER_START */
+  const BAD_WORDS = [
+    '시발', '씨발', '시빨', '씨빨', '쉬발', '씨팔', '씹', '병신', '븅신',
+    '지랄', '좆', '존나', '새끼', '새키', '개새', '썅', '미친놈', '미친년',
+    '또라이', '걸레', '창녀', '창놈', '자지', '보지', '섹스', '야동',
+    '강간', '느금', '니미', '엠창',
+    'fuck', 'fuk', 'shit', 'bitch', 'asshole', 'bastard', 'dick',
+    'cock', 'pussy', 'penis', 'vagina', 'porn', 'nigger', 'nigga',
+    'faggot', 'cunt', 'whore', 'slut', 'rape',
+  ];
+  // 공백·특수문자를 끼워 넣는 우회를 막기 위해 한글/영문/숫자만 남기고 비교
+  const normName = (s) =>
+    String(s || '').normalize('NFC').toLowerCase()
+      .replace(/[^0-9a-z가-힣ㄱ-ㆎ]/g, '');
+  const hasBadWord = (s) => {
+    const n = normName(s);
+    return !!n && BAD_WORDS.some((w) => n.includes(w));
+  };
+  // 옛 클라이언트로 등록된 기록이 남아 있어도 화면에서는 가린다
+  const dispName = (s) => (hasBadWord(s) ? '★★★' : s);
+  /* UGC_FILTER_END */
+
   /** @type {{cx:number,cy:number,state:string,type:string,t:number,upDur:number,hp:number}[]} */
   const holes = [];
   for (const cy of HOLE_Y) {
@@ -217,7 +241,7 @@
       const li = document.createElement('li');
       if (highlightId && r.id === highlightId) li.className = 'me';
       const who = document.createElement('span');
-      who.textContent = `${medals[i] || (i + 1) + '위'} ${r.name}`;
+      who.textContent = `${medals[i] || (i + 1) + '위'} ${dispName(r.name)}`;
       const pts = document.createElement('span');
       pts.textContent = `${r.score}점 · ${r.moles}마리`;
       li.appendChild(who);
@@ -265,7 +289,7 @@
     const scores = lastScores || [];
     const champ = lastWeekChampion(scores);
     if (champ) {
-      champLine.textContent = `👑 지난주 챔피언: ${champ.name} (${champ.score}점)`;
+      champLine.textContent = `👑 지난주 챔피언: ${dispName(champ.name)} (${champ.score}점)`;
       champLine.classList.remove('hidden');
     } else {
       champLine.classList.add('hidden');
@@ -345,9 +369,13 @@
   let registered = false;
   function registerScore() {
     if (registered) return;
-    registered = true;
     // NFC: iOS가 분해형 한글을 보내는 경우 완성형으로 합쳐 저장
     const name = (nameInput.value || '').normalize('NFC').trim().slice(0, 8) || '무명 두더지꾼';
+    if (hasBadWord(name)) {
+      ranksStatusGO.textContent = '이름에 부적절한 단어가 있어요 — 바꿔 주세요';
+      return;
+    }
+    registered = true;
     try { localStorage.setItem(NAME_KEY, name); } catch (e) { /* private mode */ }
     const entry = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
