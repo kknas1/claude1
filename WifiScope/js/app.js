@@ -181,6 +181,7 @@
   $('btnArNoCam').addEventListener('click', () => Ar.start(false));
   $('btnArStop').addEventListener('click', () => Ar.stop());
   $('btnArSnap').addEventListener('click', () => Ar.snapshot());
+  $('btnArReset').addEventListener('click', () => Ar.resetTrail());
 
   // ── 평면도 ──
   Heatmap.init($('mapCanvas'), $('mapWrap'), (x, y) => {

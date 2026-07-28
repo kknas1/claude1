@@ -99,11 +99,11 @@
       <div id="arStart" class="ar-start">
         <svg viewBox="0 0 24 24" class="ar-start-icon" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
         <h2>AR 신호 뷰</h2>
-        <p>카메라 화면 위에 현재 위치의 Wi-Fi 품질을<br>색상으로 실시간 표시합니다.</p>
+        <p>카메라 화면의 바닥 위에 Wi-Fi 품질을 겹쳐 보여줍니다.<br><b>폰을 든 채 걸으면</b> 지나온 자리에 신호 색 궤적이 남습니다.</p>
         <p class="ar-colors"><span class="dot dot-good"></span>강함 <span class="tri dot-mid"></span>중간 <span class="sq dot-weak"></span>약함</p>
         <button id="btnArStart" class="btn btn-primary">카메라 시작</button>
         <button id="btnArNoCam" class="btn btn-ghost">카메라 없이 라이브 측정</button>
-        <p class="hint">카메라 영상은 화면 표시용으로만 사용되며 저장·전송되지 않습니다.</p>
+        <p class="hint">시작 시 카메라·동작(자이로) 권한을 요청합니다. 카메라 영상은 화면 표시용으로만 사용되며 저장·전송되지 않습니다.</p>
       </div>
       <div id="arHud" class="ar-hud hidden">
         <div class="ar-top">
@@ -117,6 +117,7 @@
           <div class="ar-live"><span id="arPing">– ms</span> · <span id="arDown">– Mbps</span></div>
           <div class="btn-row">
             <button id="btnArSnap" class="btn btn-small">📸 스냅샷</button>
+            <button id="btnArReset" class="btn btn-small btn-ghost">궤적 리셋</button>
             <button id="btnArStop" class="btn btn-small btn-ghost">종료</button>
           </div>
         </div>
