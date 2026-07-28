@@ -1,0 +1,16 @@
+{
+  "name": "와이파이 스코프",
+  "short_name": "WiFi스코프",
+  "description": "Wi-Fi 신호 품질을 눈으로 보는 측정 도구 — 실시간 측정, AR 오버레이, 평면도 히트맵",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c1220",
+  "theme_color": "#0c1220",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
