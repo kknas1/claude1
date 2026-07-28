@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="와이파이 스코프">
+<meta name="theme-color" content="#0c1220">
+<meta name="description" content="Wi-Fi 신호 품질을 눈으로 보는 앱 — 실시간 속도 측정, AR 오버레이, 평면도 히트맵. 모든 데이터는 내 기기에만 저장됩니다.">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>와이파이 스코프 — Wi-Fi 신호를 눈으로</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2.5 8.5C5.2 6 8.4 4.6 12 4.6s6.8 1.4 9.5 3.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M5.5 11.8c1.9-1.7 4-2.6 6.5-2.6s4.6.9 6.5 2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="12" cy="16.2" r="3.1" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M14.4 18.6l2.6 2.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <h1>와이파이 스코프</h1>
+      <p class="brand-sub">Wi-Fi 신호를 눈으로 보는 측정 도구</p>
+    </div>
+  </div>
+  <span id="netBadge" class="net-badge" role="status">온라인</span>
+</header>
+
+<main id="main">
+
+  <!-- ══════════════ 측정 탭 ══════════════ -->
+  <section id="tab-measure" class="tab active" aria-label="측정">
+    <div class="gauge-wrap card">
+      <svg id="gauge" viewBox="0 0 200 120" aria-hidden="true">
+        <path id="gaugeTrack" d="" fill="none"/>
+        <path id="gaugeArc" d="" fill="none"/>
+      </svg>
+      <div class="gauge-center">
+        <div id="gaugeScore" class="gauge-score">–</div>
+        <div id="gaugeGrade" class="grade-chip grade-none">측정 전</div>
+      </div>
+      <p id="measureStatus" class="measure-status">아래 버튼을 눌러 현재 위치의 Wi-Fi 품질을 측정하세요</p>
+      <div class="progress-track" aria-hidden="true"><div id="measureProgress" class="progress-fill"></div></div>
+      <div class="btn-row">
+        <button id="btnMeasure" class="btn btn-primary">측정 시작</button>
+        <button id="btnCancelMeasure" class="btn btn-ghost hidden">중지</button>
+      </div>
+      <label class="mode-toggle">
+        <span>측정 모드</span>
+        <select id="testMode" aria-label="측정 모드">
+          <option value="quick" selected>간단 (약 5MB 사용)</option>
+          <option value="full">정밀 (약 30MB 사용)</option>
+        </select>
+      </label>
+      <p class="hint">※ 셀룰러 연결에서는 데이터가 소모됩니다. Wi-Fi 연결 상태에서 사용하세요.</p>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-tile"><div class="stat-label">다운로드</div><div class="stat-value"><span id="statDown">–</span><span class="stat-unit"> Mbps</span></div></div>
+      <div class="stat-tile"><div class="stat-label">업로드</div><div class="stat-value"><span id="statUp">–</span><span class="stat-unit"> Mbps</span></div></div>
+      <div class="stat-tile"><div class="stat-label">핑</div><div class="stat-value"><span id="statPing">–</span><span class="stat-unit"> ms</span></div></div>
+      <div class="stat-tile"><div class="stat-label">지터</div><div class="stat-value"><span id="statJitter">–</span><span class="stat-unit"> ms</span></div></div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">연결 정보</h2>
+      <dl id="connInfo" class="conn-list">
+        <div><dt>네트워크 상태</dt><dd id="ciOnline">확인 중…</dd></div>
+        <div><dt>통신사 / ISP</dt><dd id="ciIsp">측정 후 표시</dd></div>
+        <div><dt>접속 지역</dt><dd id="ciCity">측정 후 표시</dd></div>
+        <div><dt>테스트 서버</dt><dd id="ciColo">측정 후 표시</dd></div>
+        <div id="ciTypeRow" class="hidden"><dt>연결 유형(추정)</dt><dd id="ciType">–</dd></div>
+      </dl>
+      <p class="hint">브라우저 보안 정책상 SSID·RSSI(dBm)·채널 정보는 웹에서 읽을 수 없어, 실측 속도·지연 기반 품질 점수로 표시합니다.</p>
+    </div>
+
+    <div class="card legend-card">
+      <h2 class="card-title">신호 등급 기준</h2>
+      <ul class="legend-list">
+        <li><span class="dot dot-good"></span><b>좋음 (70~100)</b> — 강한 신호 · 4K 스트리밍/화상회의 원활</li>
+        <li><span class="tri dot-mid"></span><b>보통 (40~69)</b> — 웹서핑 가능 · 대용량 전송은 느림</li>
+        <li><span class="sq dot-weak"></span><b>약함 (0~39)</b> — 끊김 잦음 · 공유기 위치 개선 필요</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══════════════ AR 탭 ══════════════ -->
+  <section id="tab-ar" class="tab" aria-label="AR 뷰">
+    <div id="arStage" class="ar-stage">
+      <video id="arVideo" playsinline muted autoplay></video>
+      <canvas id="arCanvas"></canvas>
+      <div id="arStart" class="ar-start">
+        <svg viewBox="0 0 24 24" class="ar-start-icon" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <h2>AR 신호 뷰</h2>
+        <p>카메라 화면 위에 현재 위치의 Wi-Fi 품질을<br>색상으로 실시간 표시합니다.</p>
+        <p class="ar-colors"><span class="dot dot-good"></span>강함 <span class="tri dot-mid"></span>중간 <span class="sq dot-weak"></span>약함</p>
+        <button id="btnArStart" class="btn btn-primary">카메라 시작</button>
+        <button id="btnArNoCam" class="btn btn-ghost">카메라 없이 라이브 측정</button>
+        <p class="hint">카메라 영상은 화면 표시용으로만 사용되며 저장·전송되지 않습니다.</p>
+      </div>
+      <div id="arHud" class="ar-hud hidden">
+        <div class="ar-top">
+          <div id="arScoreBox" class="ar-scorebox">
+            <span id="arScore" class="ar-score">–</span>
+            <span id="arGrade" class="grade-chip grade-none">측정 중</span>
+          </div>
+          <canvas id="arSpark" width="132" height="40" aria-label="최근 핑 추이"></canvas>
+        </div>
+        <div class="ar-bottom">
+          <div class="ar-live"><span id="arPing">– ms</span> · <span id="arDown">– Mbps</span></div>
+          <div class="btn-row">
+            <button id="btnArSnap" class="btn btn-small">📸 스냅샷</button>
+            <button id="btnArStop" class="btn btn-small btn-ghost">종료</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 평면도 탭 ══════════════ -->
+  <section id="tab-map" class="tab" aria-label="평면도 히트맵">
+    <div class="card map-card">
+      <div class="map-toolbar">
+        <button id="btnPlanUpload" class="btn btn-small">평면도 업로드</button>
+        <button id="btnPlanGrid" class="btn btn-small btn-ghost">기본 격자 사용</button>
+        <button id="btnPointsClear" class="btn btn-small btn-danger">전체 삭제</button>
+        <input type="file" id="planFile" accept="image/*" class="hidden">
+      </div>
+      <p class="hint map-hint" id="mapHint">평면도 위에서 <b>현재 내가 서 있는 위치를 탭</b>하면 그 자리의 Wi-Fi를 측정해 히트맵에 기록합니다.</p>
+      <div id="mapWrap" class="map-wrap">
+        <canvas id="mapCanvas"></canvas>
+        <div id="mapConfirm" class="map-confirm hidden">
+          <p>이 위치에서 측정할까요?</p>
+          <div class="btn-row">
+            <button id="btnPointMeasure" class="btn btn-primary btn-small">측정 시작</button>
+            <button id="btnPointCancel" class="btn btn-ghost btn-small">취소</button>
+          </div>
+        </div>
+        <div id="mapBusy" class="map-busy hidden"><div class="spinner"></div><span id="mapBusyText">측정 중…</span></div>
+      </div>
+      <div class="legend-bar">
+        <span>약함 0</span>
+        <div class="legend-gradient" aria-hidden="true"></div>
+        <span>100 좋음</span>
+      </div>
+      <div class="btn-row export-row">
+        <button id="btnExportPng" class="btn btn-small">PNG 저장</button>
+        <button id="btnExportCsv" class="btn btn-small">CSV 저장</button>
+        <button id="btnExportPdf" class="btn btn-small">PDF 리포트</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2 class="card-title">측정점 <span id="pointCount" class="count-badge">0</span></h2>
+      <ul id="pointList" class="point-list"><li class="empty">아직 측정점이 없습니다. 평면도를 탭해 시작하세요.</li></ul>
+    </div>
+  </section>
+
+  <!-- ══════════════ 기록 탭 ══════════════ -->
+  <section id="tab-history" class="tab" aria-label="기록">
+    <div class="card">
+      <h2 class="card-title">측정 요약</h2>
+      <div class="stat-grid summary-grid">
+        <div class="stat-tile"><div class="stat-label">측정 횟수</div><div class="stat-value"><span id="sumCount">0</span><span class="stat-unit"> 회</span></div></div>
+        <div class="stat-tile"><div class="stat-label">평균 점수</div><div class="stat-value"><span id="sumAvg">–</span></div></div>
+        <div class="stat-tile"><div class="stat-label">최고 다운로드</div><div class="stat-value"><span id="sumMaxDown">–</span><span class="stat-unit"> Mbps</span></div></div>
+        <div class="stat-tile"><div class="stat-label">최저 핑</div><div class="stat-value"><span id="sumMinPing">–</span><span class="stat-unit"> ms</span></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 class="card-title">측정 기록 <span id="histCount" class="count-badge">0</span></h2>
+      <ul id="histList" class="hist-list"><li class="empty">기록이 없습니다.</li></ul>
+      <div class="btn-row">
+        <button id="btnHistCsv" class="btn btn-small">기록 CSV 저장</button>
+        <button id="btnHistClear" class="btn btn-small btn-danger">기록 삭제</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2 class="card-title">개인정보 · 안내</h2>
+      <ul class="info-list">
+        <li>🔒 모든 측정 데이터·평면도는 <b>이 기기의 브라우저에만 저장</b>되며 서버로 전송되지 않습니다.</li>
+        <li>📶 속도 측정 시 테스트 서버(Cloudflare)와 무의미한 테스트 데이터만 주고받습니다.</li>
+        <li>📱 Safari 공유 버튼 → <b>"홈 화면에 추가"</b>로 설치하면 앱처럼 사용할 수 있습니다.</li>
+        <li>ℹ️ 웹 브라우저는 보안상 주변 공유기 목록·채널 혼잡도·RSSI를 제공하지 않아, 이 앱은 실측 속도·지연 기반으로 품질을 계산합니다.</li>
+      </ul>
+      <button id="btnWipeAll" class="btn btn-small btn-danger">모든 데이터 초기화</button>
+    </div>
+  </section>
+</main>
+
+<!-- 인쇄(PDF) 전용 리포트 -->
+<section id="report" aria-hidden="true">
+  <h1>와이파이 스코프 측정 리포트</h1>
+  <p id="reportDate"></p>
+  <div id="reportSummary"></div>
+  <img id="reportMap" alt="Wi-Fi 히트맵">
+  <table id="reportTable"></table>
+  <p class="report-foot">와이파이 스코프 — 데이터는 사용자 기기에만 저장됩니다.</p>
+</section>
+
+<nav class="tabbar" aria-label="주 메뉴">
+  <button class="tab-btn active" data-tab="measure" aria-label="측정">
+    <svg viewBox="0 0 24 24"><path d="M12 20v-7M12 13a7 7 0 0 1 7-7M12 13a7 7 0 0 0-7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span>측정</span>
+  </button>
+  <button class="tab-btn" data-tab="ar" aria-label="AR 뷰">
+    <svg viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+    <span>AR</span>
+  </button>
+  <button class="tab-btn" data-tab="map" aria-label="평면도">
+    <svg viewBox="0 0 24 24"><path d="M9 4L4 6v14l5-2 6 2 5-2V4l-5 2-6-2zM9 4v14M15 6v14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    <span>평면도</span>
+  </button>
+  <button class="tab-btn" data-tab="history" aria-label="기록">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span>기록</span>
+  </button>
+</nav>
+
+<div id="toast" class="toast" role="status"></div>
+
+<script src="js/quality.js"></script>
+<script src="js/speedtest.js"></script>
+<script src="js/heatmap.js"></script>
+<script src="js/ar.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
