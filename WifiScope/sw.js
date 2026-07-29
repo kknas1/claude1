@@ -1,5 +1,6 @@
-/* 와이파이 스코프 서비스 워커 — 앱 셸 캐시 (측정 트래픽은 캐시하지 않음) */
-const CACHE = 'wifiscope-v3';
+/* 와이파이 스코프 서비스 워커 — 앱 셸 캐시 (측정 트래픽은 캐시하지 않음)
+   CACHE 버전은 js/app.js의 APP_VERSION과 함께 올린다 */
+const CACHE = 'wifiscope-v1.3.0';
 const SHELL = [
   './',
   './index.html',
