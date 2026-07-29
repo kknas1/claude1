@@ -3,6 +3,7 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
+  const APP_VERSION = '1.3.0';   // 릴리스마다 sw.js CACHE 버전과 함께 올릴 것
   const STORE_KEY = 'wifiscope.v1';
 
   // ── 저장소 (모든 데이터는 이 기기의 localStorage에만 저장) ──
@@ -319,7 +320,7 @@
 
   function buildReport() {
     const d = new Date();
-    $('reportDate').textContent = `생성 일시: ${d.toLocaleString('ko-KR')}`;
+    $('reportDate').textContent = `생성 일시: ${d.toLocaleString('ko-KR')} · 앱 버전 v${APP_VERSION}`;
     const pts = store.points;
     const scores = pts.map(p => p.score);
     const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
@@ -397,6 +398,7 @@
   });
 
   // ── 초기화 ──
+  $('appVer').textContent = 'v' + APP_VERSION;
   load();
   setupGauge();
   setGauge(null);
