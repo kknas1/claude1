@@ -1,5 +1,5 @@
 /* 와이파이 스코프 서비스 워커 — 앱 셸 캐시 (측정 트래픽은 캐시하지 않음) */
-const CACHE = 'wifiscope-v2';
+const CACHE = 'wifiscope-v3';
 const SHELL = [
   './',
   './index.html',

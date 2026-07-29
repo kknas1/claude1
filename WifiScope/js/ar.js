@@ -37,12 +37,27 @@
     R: [1, 0, 0, 0, 1, 0, 0, 0, 1],   // 기기→지면 회전행렬 (스무딩 적용)
     Rt: null,               // 목표 행렬
     pos: { x: 0, y: 0 },
+    field: { x: 0, y: 0 },  // 신호 필드 중심 (사용자를 천천히 따라옴)
     dist: 0,                // 누적 이동 거리
     trail: [],              // {x, y, score}
     accEma: 9.81,
     lastStepT: 0,
   };
   let ui = {};
+
+  // 공중 신호 입자 필드: 사용자 주변 반경 1.4~6m, 높이 0.25~2.3m (결정적 배치)
+  const frac = (n) => n - Math.floor(n);
+  const ORBS = Array.from({ length: 46 }, (_, i) => {
+    const ang = i * 2.399963;             // 골든 앵글
+    const r = 1.4 + 4.6 * frac(i * 0.6180339887);
+    return {
+      dx: Math.cos(ang) * r,
+      dy: Math.sin(ang) * r,
+      z: 0.25 + 2.05 * frac(i * 0.3770749),
+      sz: 0.7 + 0.6 * frac(i * 0.7548776),
+      ph: frac(i * 0.892) * Math.PI * 2,  // 펄스 위상
+    };
+  });
 
   function init(els) {
     stage = els.stage; video = els.video; canvas = els.canvas; ui = els;
@@ -87,6 +102,7 @@
     world.Rt = rotMatrix((e.alpha || 0) * D2R, e.beta * D2R, e.gamma * D2R);
     if (!world.sensorOn) {
       world.sensorOn = true;
+      world.field = { x: world.pos.x, y: world.pos.y };
       if (!world.trail.length) dropTrailPoint();  // 시작 지점
     }
   }
@@ -149,6 +165,7 @@
 
   function resetTrail() {
     world.pos = { x: 0, y: 0 };
+    world.field = { x: 0, y: 0 };
     world.dist = 0;
     world.trail = [];
     if (world.sensorOn) dropTrailPoint();
@@ -192,7 +209,7 @@
     ctx && ctx.clearRect(0, 0, canvas.width, canvas.height);
     state.pings = []; state.emaDown = null; state.score = null; state.smooth = null;
     world.sensorOn = false; world.motionOn = false;
-    world.pos = { x: 0, y: 0 }; world.dist = 0; world.trail = [];
+    world.pos = { x: 0, y: 0 }; world.field = { x: 0, y: 0 }; world.dist = 0; world.trail = [];
     world.R = [1, 0, 0, 0, 1, 0, 0, 0, 1]; world.Rt = null;
   }
 
@@ -390,31 +407,119 @@
       }
     }
 
-    // 4) 현재 위치 스캔 링 (퍼지는 원, 월드 좌표 샘플링 투영)
-    const phase = (t % 2200) / 2200;
-    const ring = 0.25 + phase * 1.15;
+    // 4) 신호 필드 — 제자리에서도 공간에 퍼진 신호가 바로 보이는 요소들
+    // 필드 중심은 사용자를 천천히 따라옴 (걸어도 자연스럽게 이동)
+    world.field.x += (world.pos.x - world.field.x) * 0.02;
+    world.field.y += (world.pos.y - world.field.y) * 0.02;
+    const fx0 = world.field.x, fy0 = world.field.y;
     const col = currentColor().map(Math.round);
-    ctx.strokeStyle = rgba(col, 0.55 * (1 - phase));
-    ctx.lineWidth = Math.max(1.5, w / 500);
-    ctx.beginPath();
-    let started = false;
-    for (let k = 0; k <= 26; k++) {
-      const ang = (k / 26) * Math.PI * 2;
-      const [hx, hy] = heading();
-      const cxp = world.pos.x + hx * 1.1, cyp = world.pos.y + hy * 1.1; // 반 발짝 앞
-      const s = project(cxp + Math.cos(ang) * ring, cyp + Math.sin(ang) * ring, 0.015, w, h, f);
-      if (!s) { started = false; continue; }
-      if (!started) { ctx.moveTo(s.x, s.y); started = true; }
-      else ctx.lineTo(s.x, s.y);
+
+    // 4-a) 전파 파동 링: 내 위치에서 바닥을 타고 퍼져나가는 동심원 3개
+    ctx.lineCap = 'round';
+    for (let ri = 0; ri < 3; ri++) {
+      const phase = ((t / 2600) + ri / 3) % 1;
+      const ring = 0.3 + phase * 6.2;
+      const alpha = 0.62 * (1 - phase);
+      if (alpha <= 0.03) continue;
+      ctx.strokeStyle = rgba(col, alpha);
+      ctx.lineWidth = Math.max(2, (w / 210) * (1 - phase * 0.6));
+      ctx.shadowColor = rgba(col, alpha * 0.9);
+      ctx.shadowBlur = w / 90;
+      ctx.beginPath();
+      let started = false;
+      for (let k = 0; k <= 40; k++) {
+        const ang = (k / 40) * Math.PI * 2;
+        const s = project(world.pos.x + Math.cos(ang) * ring, world.pos.y + Math.sin(ang) * ring, 0.02, w, h, f);
+        if (!s) { started = false; continue; }
+        if (!started) { ctx.moveTo(s.x, s.y); started = true; }
+        else ctx.lineTo(s.x, s.y);
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 4-b) 물결 네온 스트림: 공중을 흐르는 신호 라인 3줄 (참고 영상의 초록 라인)
+    for (let sIdx = 0; sIdx < 3; sIdx++) {
+      const baseR = 2.1 + sIdx * 1.15;
+      const baseH = 0.85 + sIdx * 0.4;
+      const rot = t / (26000 + sIdx * 9000) * Math.PI * 2 + sIdx * 2.1;
+      let prev = null;
+      for (let k = 0; k <= 30; k++) {
+        const arc = (k / 30) * Math.PI * 1.5;  // 270° 아크
+        const ang = rot + arc;
+        const wob = 0.22 * Math.sin(arc * 4 + t / 640 + sIdx * 2) + 0.1 * Math.sin(arc * 9 - t / 410);
+        const rr2 = baseR + 0.3 * Math.sin(arc * 2.5 + t / 900 + sIdx);
+        const s = project(fx0 + Math.cos(ang) * rr2, fy0 + Math.sin(ang) * rr2, baseH + wob, w, h, f);
+        if (!s || s.d < 0.6) { prev = null; continue; }
+        if (prev) {
+          const lw = Math.min(14, Math.max(2, 9 / s.d * (w / 800)));
+          ctx.shadowColor = rgba(col, 0.85);
+          ctx.shadowBlur = lw * 2;
+          ctx.strokeStyle = rgba(col, 0.5);
+          ctx.lineWidth = lw * 1.8;
+          ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(s.x, s.y); ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+          ctx.lineWidth = Math.max(1, lw * 0.35);
+          ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(s.x, s.y); ctx.stroke();
+        }
+        prev = s;
+      }
+    }
+
+    // 4-c) 공중 신호 입자 필드: 방 안 곳곳에 떠 있는 발광 오브
+    for (const o of ORBS) {
+      const pulse = 0.75 + 0.25 * Math.sin(t / 800 + o.ph);
+      const s = project(fx0 + o.dx, fy0 + o.dy, o.z + 0.06 * Math.sin(t / 1100 + o.ph * 3), w, h, f);
+      if (!s || s.d < 0.5) continue;
+      const r = Math.min(95, Math.max(4, 58 / s.d * (w / 800) * o.sz));
+      ctx.fillStyle = rgba(col, 0.14 * pulse);
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = rgba(col, 0.34 * pulse);
+      ctx.beginPath(); ctx.arc(s.x, s.y, r * 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = rgba(col, 0.6 * pulse);
+      ctx.beginPath(); ctx.arc(s.x, s.y, r * 0.26, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(255,255,255,${0.55 * pulse})`;
+      ctx.beginPath(); ctx.arc(s.x, s.y, r * 0.09, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
-  // ── 폴백(화면 고정) 렌더 ──
+  // ── 폴백(화면 고정) 렌더 — 자이로 없이도 파동·물결 라인 표시 ──
   function drawFallback(t, w, h) {
     const [r, g, b] = currentColor().map(Math.round);
     const col = (a) => `rgba(${r},${g},${b},${a})`;
     const horizon = h * 0.55;
+
+    // 화면 하단 중심에서 퍼지는 전파 링
+    for (let ri = 0; ri < 3; ri++) {
+      const phase = ((t / 2600) + ri / 3) % 1;
+      const alpha = 0.4 * (1 - phase);
+      if (alpha <= 0.03) continue;
+      const rad = (0.08 + phase * 0.75) * h;
+      ctx.strokeStyle = col(alpha);
+      ctx.lineWidth = Math.max(1.5, (w / 280) * (1 - phase * 0.6));
+      ctx.beginPath();
+      ctx.ellipse(w / 2, h * 0.92, rad, rad * 0.34, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 공중 물결 라인
+    for (let sIdx = 0; sIdx < 2; sIdx++) {
+      const baseY = h * (0.3 + sIdx * 0.18);
+      ctx.shadowColor = col(0.8);
+      ctx.shadowBlur = w / 60;
+      ctx.strokeStyle = col(0.45);
+      ctx.lineWidth = w / 120;
+      ctx.beginPath();
+      for (let k = 0; k <= 40; k++) {
+        const x = (k / 40) * w;
+        const y = baseY + Math.sin(k / 3.2 + t / 700 + sIdx * 2.5) * h * 0.02
+          + Math.sin(k / 1.3 - t / 450) * h * 0.008;
+        k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, horizon, w, h - horizon);
